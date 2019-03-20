@@ -1,0 +1,105 @@
+---
+title: "MAL067: Experimental Design"
+author: "Carl Murie and Raphael Gottardo"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   BiocStyle::html_document:
+    theme: lumen
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r packages}
+library(RNASeqUtilities)
+library(Biobase)
+library(tidyverse)
+```
+
+
+```{r load-data}
+library(mal067data)
+data(mal067_eset)
+meta_dt <- as.tibble(pData(mal067_eset))
+
+numberOfSubs <- length(unique(meta_dt$pid))
+```
+
+#Experimental Design
+
+Bulk RNASeq RTS,S malaria vaccine study. 
+
+1. Investigate mechanisms of the RTS,S vaccine-induced protection against malaria  
+2. Identify a correlate of RTS,S vaccine-induced protection  
+
+**Subjects**: `r numberOfSubs` subjects.
+
+**Vaccine**: rtss and comparator
+
+**Stimulation**: dmso, csp, hbs, ama1
+
+**Location**: bagamoyo and manhica
+
+**Age**: 6-12 weeks (young) and 5-17 months (old).
+
+**Outcome**: control (no malaria) and case (malaria)
+
+**Visit**: M0 and M3 (initial visit and 3 months later)
+
+
+#Sequencing
+
+Reads were aligned using BWA Aln version 0.7.10. The transcriptome was downloaded from
+UCSC RefSeq (Human 19 or Mouse 10). Mitochondrial genes and ERCC reference sequences were
+added. Sequence alignment and quantification were run at Broad Technology Labs. The data was voom transformed and a linear model was applied for statistical testing.
+
+Samples with total read counts less than 75000 were removed. Genes that did not have at least 20 samples (approximately 10% of the sample size) with read counts greater than 5 were removed. 
+
+There were `r ncol(mal067_eset)` samples and `r nrow(mal067_eset)` genes remaining after filtering. 
+
+
+#Sample Sizes
+
+There is a significant confound between age and location. Bagamoyo had samples only from the old age group and Manhica had mostly samples from the young age group.
+
+##By location  
+  
+```{r samples_site}
+meta_dt %>%
+  filter(site=="BAGAMOYO") %>%
+  countSampleSizes("stimulation", c("age", "visit", "vaccine", "case")) %>%
+  headerKable(labels=c("age", "visit", "vaccine", "disease"), levels=c(2,2,2,3),
+              title="Bagamoyo")
+
+meta_dt %>%
+  filter(site=="MANHICA") %>%
+  countSampleSizes("stimulation", c("age", "visit", "vaccine", "case")) %>%
+  headerKable(labels=c("age", "visit", "vaccine", "disease"), levels=c(2,2,2,3),
+              title="Manhica")
+
+```
+  
+##By Plate  
+  
+```{r samples_plate}
+meta_dt %>%
+  filter(site=="BAGAMOYO") %>%
+  countSampleSizes("plate", c("stimulation","age","visit","vaccine","case")) %>%
+  headerKable(labels=c("stimulation", "age", "visit", "vaccine", "disease"),
+              levels=c(4,2,2,2,3),
+              title="Bagamoyo")
+
+meta_dt %>%
+  filter(site=="MANHICA") %>%
+  countSampleSizes("plate", c("stimulation","age","visit","vaccine","case")) %>%
+  headerKable(labels=c("stimulation", "age", "visit", "vaccine", "disease"),
+              levels=c(4,2,2,2,3),
+              title="Manhica")
+
+```
+  

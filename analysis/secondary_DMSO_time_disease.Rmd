@@ -1,0 +1,106 @@
+---
+title: "GSEA time*disease interaction for DMSO"
+subtitle: "old age group"
+author: "Carl Murie and Raphael Gottardo"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   BiocStyle::html_document:
+    theme: lumen
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r load-packages}
+library(RNASeqUtilities)
+library(Biobase)
+library(GSEABase)
+library(DT)
+library(limma)
+library(tidyverse)
+library(magrittr)
+library(here)
+library(readr)
+
+source(here("code", "mal_utilities.R"))
+```
+
+```{r load-data}
+library(mal067data)
+data(mal067_eset)
+meta_dt <- as.tibble(pData(mal067_eset))
+```
+
+
+```{r set-parameters}
+SHOW_SAMPLE_SIZE <- TRUE
+
+## parameters set by parent: stim, time
+stim="dmso"
+time="M0"
+
+fdr_cut <- 0.2
+p_cut <- 0.01
+min_gene_set <- 5
+form_interact_dis <- "~plate + total_reads + age_weeks + visit*case"
+
+## store number of significant gene-sets for each comparison
+summary_tab <- NULL
+```
+
+```{r genesets}
+## set up GSEA analysis
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+```
+
+# GSEA `r toupper(stim)`: disease main effects
+
+**disease linear model:** `r form_interact_dis`  
+**disease filtering   :** `r time`, case/control, rtss and comparator  
+
+```{r disease_data}
+## disease: select subset of expressionSet
+meta_dt %>% 
+  filter(stimulation == stim) %>% 
+  filter(case != "neither") %>%
+  filter(age == "old") %>%
+  filter(vaccine == "rtss") %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation/case levels
+mal_dis <- mal067_eset[, sample_vac] 
+mal_dis$stimulation <- fct_drop(mal_dis$stimulation)
+mal_dis$case <- fct_drop(mal_dis$case)
+
+```
+
+##old age group {.tabset .tabset-fade .tabset-pills}
+
+```{r sample_size, eval=SHOW_SAMPLE_SIZE}
+
+## get sample sizes
+countSampleSizes(pData(mal_dis), "stimulation", 
+                 c("vaccine", "case", "age", "visit")) %>%
+headerKable(labels=c("vaccine", "case", "age", "visit"), levels=c(2,2,2,2), 
+            title="disease sample size")
+```
+  
+###disease  
+
+```{r dis_analysis, results="asis"}
+
+################## disease analysis ############################
+
+cam_dis <- runGSEA(mal_dis, 
+                   form_interact_dis,
+                   coef="visitM3:casecase")
+summary_tab <-  sum(cam_dis$FDR <= fdr_cut)
+```

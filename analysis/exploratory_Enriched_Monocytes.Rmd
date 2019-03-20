@@ -1,0 +1,172 @@
+---
+title: "Enriched Monocyte GSEA gene set analysis"
+subtitle: "DMSO: M3"
+author: "Carl Murie and Raphael Gottardo"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   workflowr::wflow_html:
+    theme: lumen
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r load-packages}
+library(RNASeqUtilities)
+library(Biobase)
+library(GSEABase)
+library(DT)
+library(limma)
+library(tidyverse)
+library(magrittr)
+library(here)
+library(gridExtra)
+library(data.table)
+
+source(here("code", "mal_utilities.R"))
+```
+
+
+```{r load-data}
+library(mal067data)
+data(mal067_eset)
+```
+
+```{r genesets}
+min_gene_set <- 5
+
+## set up GSEA analysis
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+```
+
+```{r monocytes}
+gene_set <- "enriched in monocytes (II) (M11.0)"
+btm_eset <- mal067_eset[btm_ind[[gene_set]],]
+other_eset <- mal067_eset[-btm_ind[[gene_set]],]
+```
+
+# `r gene_set`
+
+Investigate log2CPM normalised reads for DMSO samples at time point M3
+
+```{r filter}
+pData(btm_eset) %>%
+  filter(stimulation=="dmso",
+         visit=="M3") %$%
+  col_id ->
+  dmso_ind
+
+dmso_eset <- btm_eset[,dmso_ind]
+dmso_eset$stimulation <- fct_drop(dmso_eset$stimulation)
+dmso_other <- other_eset[,dmso_ind]
+dmso_other$stimulation <- fct_drop(dmso_other$stimulation)
+```
+
+##Disease testing 
+  
+```{r disease-filter}
+
+form <- "~plate + total_reads + case"
+
+dis_eset <- dmso_eset[, dmso_eset$case != "neither"]
+dis_eset <- dis_eset[, dis_eset$vaccine == "rtss" & dis_eset$age=="young"]
+dis_eset$case <- fct_drop(dis_eset$case) 
+
+dis_esetall <- dmso_other[, dmso_other$case != "neither"]
+dis_esetall <- dis_esetall[, dis_esetall$vaccine == "rtss" & dis_esetall$age=="young"]
+dis_esetall$case <- fct_drop(dis_esetall$case) 
+```
+
+###Sample size
+
+```{r sample}
+countSampleSizes(pData(dis_eset), "stimulation", c("case", "vaccine", "age")) %>%
+  headerKable(c("disease", "vaccine", "age"), c(2,2,2))
+```
+
+###Differential gene testing  
+  
+linear model: `r form`  
+  
+```{r dis-test}
+
+dis_design <-  model.matrix(formula(form), data=dmso_other)
+dis_voom <- voom(dmso_other, design=dis_design)
+dis_fit <- lmFit(dis_voom, dis_design)
+dis_fit <- eBayes(dis_fit)
+dis_res <- topTable(dis_fit, number=Inf, coef="casecase", sort.by="P")
+
+dis_res  %>% 
+  select(-c("t","B")) %>%
+  rename(FDR = "adj.P.Val",
+         PValue = "P.Value") %>%
+  datatable() %>% 
+  formatRound(columns = c("logFC", "AveExpr", "PValue", "FDR"), digits = 4)
+```
+  
+The enriched monocytes gene-set was found to be up-regulated for DMSO at time-point M3 for the young age group.
+
+```{r graph2}
+graphs <- createDEGGraphs(dis_res)
+grid.arrange(grobs=graphs, nrow=1)
+```
+
+
+
+```{r dis-all}
+
+dis_design <-  model.matrix(formula(form), data=dis_esetall)
+dis_voom <- voom(dis_esetall, design=dis_design)
+dis_fit <- lmFit(dis_voom, dis_design)
+dis_fit <- eBayes(dis_fit)
+dis_res <- topTable(dis_fit, number=Inf, coef="casecase", sort.by="P")
+
+```
+  
+
+```{r graph1}
+graphs <- createDEGGraphs(dis_res)
+grid.arrange(grobs=graphs, nrow=1)
+```
+
+
+
+```{r tops, eval=FALSE}
+
+dis_res %>%
+  as.tibble(rownames="gene_ids") %>%
+  filter(logFC < 0) %>%
+  top_n(-4, wt=P.Value) ->
+  pos
+
+```
+  
+
+```{r gene-expression, eval=FALSE}
+
+gene_exp <- dis_voom$E[rownames(dis_eset) %in% pos$gene_ids,]
+gene_dt <- melt(gene_exp)
+gene_dt <- dplyr::left_join(gene_dt, pData(dis_eset), by=c("Var2"="col_id"))
+
+ggplot(gene_dt, aes(x=case, y=value, color=case)) + geom_boxplot() + 
+  facet_wrap(~Var1, nrow=2)
+
+```
+
+```{r gene-means, eval=FALSE}
+
+gene_exp <- dis_voom$E
+gene_dt <- melt(gene_exp)
+gene_dt <- dplyr::left_join(gene_dt, pData(dis_eset), by=c("Var2"="col_id"))
+
+m_case <- mean(gene_dt$value[gene_dt$case=="case"])
+m_con <- mean(gene_dt$value[gene_dt$case=="control"])
+```
+

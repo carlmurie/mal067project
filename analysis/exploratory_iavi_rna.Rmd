@@ -1,0 +1,580 @@
+---
+title: "Integrate IAVI and RNASeq data"
+subtitle: "M3"
+author: "Carl Murie and Raphael Gottardo"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   BiocStyle::html_document:
+    theme: lumen
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r packages}
+library(RNASeqUtilities)
+library(Biobase)
+library(limma)
+library(magrittr)
+library(here)
+library(data.table)
+library(survival)   ## clogit
+library(GSEABase)
+library(tidyverse)
+
+source(here("code", "mal_utilities.R"))
+```
+
+```{r load-data}
+library(mal067data)
+data(mal067_eset)
+meta_dt <- as_tibble(pData(mal067_eset))
+```
+
+
+```{r gsea}
+min_gene_set <- 5
+
+## set up GSEA analysis
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+```
+
+
+```{r getmorevars}
+
+## l_df_flow and l_df_rna
+##
+## 1. cytokines: stimulation (HBS, CSP),antigens (28), and log10 stim/DMSO ratios
+## 2. IAVI: IgG (CSP - NANP), IgG (CSP - C-term)
+## 3. CEVAC: IgG CSP-NANP titers, IgG HBsAg titers (both in log10 of the titers)
+## 4. antibody Luminex: isotope (IgG, IgM), analyte (42 antigens), log10 of the
+##                      median fluorecence intensity
+load("data/m067_seattle_data.RData")
+
+```
+
+# IAVI and RNASeq analysis  
+  
+Database of IAVI contains 2 new variables: eu_elisa_total.nanp (IgG CSP-NANP) and eu_elisa_total.cterm (IgG CSP-C-term). Both concentrations are given in European Units (EU) per mililiter. 
+  
+```{r iavi} 
+
+## format rnaseq meta data
+meta_dt %>%
+  filter(stimulation=="csp") %>%
+  filter(vaccine=="rtss") %>%
+  mutate(visit=as.character(visit)) %>%
+  dplyr::select(pid, visit, col_id, case, malaria_status, match, vaccine) ->
+  meta_cyto
+
+## format IAVI data
+l_df_rna[[2]] ->
+  df_rna
+
+##countSampleSizes(df_rna, "visit", c("vaccine", "sex")) %>%
+##  headerKable()
+
+## join iavi data with rnaseq meta data
+dplyr::inner_join(df_rna, meta_cyto, by=c("pid", "visit")) %>%
+  dplyr::rename(nanp = eu_elisa_total.nanp) %>%
+  dplyr::rename(cterm = eu_elisa_total.cterm) ->
+  cyto
+
+## check that total sample size is correct
+total <- length(intersect(paste(meta_cyto$visit,meta_cyto$pid),
+                          paste(df_rna$visit, df_rna$pid))) 
+if(total != nrow(cyto)) {stop("Sample size is not correct")}
+
+
+```
+
+## Sample size
+
+### IAVI database  
+  
+```{r samplesize1}
+countSampleSizes(df_rna, "visit", c("vaccine")) %>%
+  headerKable()
+```
+
+### after joining the rnaSeq meta-data and IAVI database  
+  
+Only rtss samples were used.  
+
+```{r samplesize2}
+countSampleSizes(cyto, "visit", c("vaccine.x", "case")) %>%
+  headerKable()
+```
+
+One sample(pid=3010 and visit=M0) in the AIVI database was identified as given the comparator while the RNASeq meta-data had it assigned as being given the rts,s vaccine. This sample was removed.  
+  
+```{r clean}
+cyto %<>%
+  filter(pid !=3010)
+```
+
+## Disease prediction  
+
+A clogit test of case-control vs isotype differences with gender and match as a stratified variable was applied to the IAVI frequencies.  
+
+```{r cyto_logit}
+
+## gather just case/control samples which the match stratified variable
+cyto %>%
+  filter(case != "neither") %>%
+  mutate(case = fct_drop(case)) %>%                    ## remove "neither" level
+  ## clogit needs case as a binary value (0,1)
+  mutate(case_logit=as.numeric(plyr::mapvalues(as.character(case), 
+                                               from=c("control", "case"),
+                                               to=c(0,1)))) %>%
+  as.data.table() ->
+  cyto_logit
+```
+
+###Sample size  
+  
+```{r sample3} 
+countSampleSizes(cyto_logit, "visit", c("case", "vaccine.x")) %>%
+  headerKable()
+```
+
+```{r output}
+
+ ##x <- clogit(case_logit~sex+cterm+strata(match), data=cyto_logit[visit=="M0"])
+
+ pval_cterm <- cyto_logit[,summary(clogit(case_logit~sex+cterm+strata(match)))$coefficient["cterm", 5], by=.(visit)]
+colnames(pval_cterm)[2] <- "cterm"
+
+pval_nanp <- cyto_logit[,summary(clogit(case_logit~sex+nanp+strata(match)))$coefficient["nanp", 5], by=.(visit)]
+colnames(pval_nanp)[2] <- "nanp"
+ 
+  ## plot boxplots of log10 ratio to case/control
+ gg_cterm <- ggplot(cyto_logit, aes(x=case, y=cterm)) + geom_point() + 
+   geom_jitter() + xlab("case") + facet_wrap(~visit) + ggtitle("cterm")
+ 
+ gg_nanp <- ggplot(cyto_logit, aes(x=case, y=nanp)) + geom_point() + 
+   geom_jitter() + xlab("case") + facet_wrap(~visit) + ggtitle("nanp")
+```
+  
+The clogit function did not converge for the nanp data.  
+  
+```{r table}
+ ## output p-values and plots
+ cbind(pval_nanp, pval_cterm[,2]) %>%
+   mutate(nanp=signif(nanp, 4)) %>%
+   mutate(cterm=signif(cterm, 4)) %>%
+   mutate(nanp_fdr=signif(p.adjust(nanp, method="fdr"), 4)) %>%
+   mutate(cterm_fdr=signif(p.adjust(cterm, method="fdr"), 4)) %>%
+   mutate(nanp=cell_spec(nanp, color = ifelse(nanp <= 0.2, "red", "black"))) %>%
+   mutate(cterm=cell_spec(cterm, color = ifelse(cterm <= 0.2, "red", "black"))) %>%
+   mutate(nanp_fdr=cell_spec(nanp_fdr, color = ifelse(nanp_fdr <= 0.2, 
+                                                      "red", "black"))) %>%
+   mutate(cterm_fdr=cell_spec(cterm_fdr, color = ifelse(cterm_fdr <= 0.2, 
+                                                        "red", "black"))) %>%
+ headerKable(title="clogit p-values")
+```
+ 
+##nanp and cterm plots of case and control
+ 
+```{r plots} 
+ print(gg_nanp)
+ print(gg_cterm)
+```
+  
+##Correlations between IAVI and RNASeq gene expression for significant GSEA gene-sets  {.tabset .tabset-fade .tabset-pills}  
+  
+  
+```{r sig1}
+sigSetName <- "enriched in myeloid cells and monocytes (M81)"
+sigSet <- btm_ind[[sigSetName]]
+```
+  
+###`r sigSetName` | IAVA vs RNASeq gene expression 
+  
+Correlations greater than 0.2 or less than -0.2 are in red.  
+  \
+```{r sig1_analysis}
+
+rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
+all_DT <- data.table(dplyr::inner_join(cyto, rna_DT, by=c("col_id"="Var2")))
+setnames(all_DT, "Var1", "gene")
+
+## nanp
+corAll_nanp <- all_DT[,.(pearson=signif(cor(value, nanp,
+                                            use="pairwise.complete.obs"), 3),
+              spearman=signif(cor(value, nanp, method="spearman",
+                                  use="pairwise.complete.obs"), 3)),
+              by=visit]
+
+corGene_nanp <- all_DT[,.(pearson=signif(cor(value, nanp,
+                                            use="pairwise.complete.obs"), 3),
+              spearman=signif(cor(value, nanp, method="spearman",
+                                  use="pairwise.complete.obs"), 3)),
+              by=.(gene, visit)]
+
+corAll_nanp %>%
+mutate(pearson=cell_spec(pearson, 
+                         color = ifelse(pearson >= 0.2, "red", "black"))) %>%
+mutate(spearman=cell_spec(spearman, 
+                         color = ifelse(spearman >= 0.2, "red", "black"))) %>%
+headerKable(title="nanp")
+
+## cterm
+corAll_cterm <- all_DT[,.(pearson=signif(cor(value, cterm,
+                                            use="pairwise.complete.obs"), 3),
+              spearman=signif(cor(value, cterm, method="spearman",
+                                  use="pairwise.complete.obs"), 3)),
+              by=visit]
+
+corGene_cterm <- all_DT[,.(pearson=signif(cor(value, cterm,
+                                            use="pairwise.complete.obs"), 3),
+              spearman=signif(cor(value, cterm, method="spearman",
+                                  use="pairwise.complete.obs"), 3)),
+              by=.(gene, visit)]
+
+corAll_cterm %>%
+mutate(pearson=cell_spec(pearson, 
+                         color = ifelse(pearson >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+mutate(spearman=cell_spec(spearman, 
+                        color = ifelse(spearman >= 0.2 | spearman <= -0.2, 
+                                        "red", "black"))) %>%
+headerKable(title="cterm")
+```
+
+####Correlation plots  
+  
+```{r corplots}
+
+melt(corGene_nanp, measure=c("pearson", "spearman")) %>%
+  ggplot(aes(x=visit, y=value)) + geom_boxplot() + geom_point()  +
+  ylim(-1,1) + ggtitle("nanp") + facet_wrap(~variable) + ylab("correlation") +
+  geom_hline(yintercept=c(-0.2, 0.2), linetype="dashed", color = "red")
+
+melt(corGene_cterm, measure=c("pearson", "spearman")) %>%
+  ggplot(aes(x=visit, y=value)) + geom_boxplot() + geom_point() +
+  ylim(-1,1) + ggtitle("cterm") + facet_wrap(~variable) + ylab("correlation") +
+  geom_hline(yintercept=c(-0.2, 0.2), linetype="dashed", color = "red")
+
+```
+
+####Correlation tables  
+  
+Correlations greater than 0.2 or less than -0.2 are in red.   
+  
+```{r cortable}
+##nanp
+corGene_nanp %>%
+  select(c(gene,visit,spearman)) %>%
+  spread(key="visit", value=c("spearman")) %>%
+  mutate(M0=cell_spec(M0, color = ifelse(M0 >= 0.2 | M0 <= -0.2, 
+                                        "red", "black")))%>%
+  mutate(M3=cell_spec(M3, color = ifelse(M3 >= 0.2 | M3 <= -0.2, 
+                                        "red", "black"))) -> 
+  nanp_spear
+
+corGene_nanp %>%
+  select(c(gene,visit, pearson)) %>%
+  spread(key="visit", value=c("pearson")) %>%
+  mutate(M0=cell_spec(M0, color = ifelse(M0 >= 0.2 | M0 <= -0.2, 
+                                        "red", "black")))%>%
+  mutate(M3=cell_spec(M3, color = ifelse(M3 >= 0.2 | M3 <= -0.2, 
+                                        "red", "black")))  ->
+  nanp_pear
+
+  cbind(nanp_pear, nanp_spear[,-1]) %>%
+    headerKable(title="nanp") %>%
+    add_header_above(c(" "=1, "pearson"=2, "spearman"=2))
+  
+  ## cterm
+  corGene_cterm %>%
+  select(c(gene,visit,spearman)) %>%
+  spread(key="visit", value=c("spearman")) %>%
+  mutate(M0=cell_spec(M0, color = ifelse(M0 >= 0.2 | M0 <= -0.2, 
+                                        "red", "black")))%>%
+  mutate(M3=cell_spec(M3, color = ifelse(M3 >= 0.2 | M3 <= -0.2, 
+                                        "red", "black"))) -> 
+  cterm_spear
+
+corGene_cterm %>%
+  select(c(gene,visit, pearson)) %>%
+  spread(key="visit", value=c("pearson")) %>%
+  mutate(M0=cell_spec(M0, color = ifelse(M0 >= 0.2 | M0 <= -0.2, 
+                                        "red", "black")))%>%
+  mutate(M3=cell_spec(M3, color = ifelse(M3 >= 0.2 | M3 <= -0.2, 
+                                        "red", "black")))  ->
+  cterm_pear
+
+  cbind(cterm_pear, cterm_spear[,-1]) %>%
+    headerKable(title="cterm") %>%
+    add_header_above(c(" "=1, "pearson"=2, "spearman"=2))
+  
+```
+
+
+
+
+```{r sig2}
+sigSetName <- "NK cell surface signature (S1)"
+sigSet <- btm_ind[[sigSetName]]
+```
+ 
+###`r sigSetName` | IAVA vs RNASeq gene expression 
+  
+Correlations greater than 0.2 or less than -0.2 are in red.  
+  \
+```{r sig1_analysis2}
+
+rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
+all_DT <- data.table(dplyr::inner_join(cyto,rna_DT, by=c("col_id"="Var2")))
+setnames(all_DT, "Var1", "gene")
+
+## nanp
+corAll_nanp <- all_DT[,.(pearson=signif(cor(value, nanp,
+                                            use="pairwise.complete.obs"), 3),
+              spearman=signif(cor(value, nanp, method="spearman",
+                                  use="pairwise.complete.obs"), 3)),
+              by=visit]
+
+corGene_nanp <- all_DT[,.(pearson=signif(cor(value, nanp,
+                                            use="pairwise.complete.obs"), 3),
+              spearman=signif(cor(value, nanp, method="spearman",
+                                  use="pairwise.complete.obs"), 3)),
+              by=.(gene, visit)]
+
+corAll_nanp %>%
+mutate(pearson=cell_spec(pearson, 
+                         color = ifelse(pearson >= 0.2, "red", "black"))) %>%
+mutate(spearman=cell_spec(spearman, 
+                         color = ifelse(spearman >= 0.2, "red", "black"))) %>%
+headerKable(title="nanp")
+
+## cterm
+corAll_cterm <- all_DT[,.(pearson=signif(cor(value, cterm,
+                                            use="pairwise.complete.obs"), 3),
+              spearman=signif(cor(value, cterm, method="spearman",
+                                  use="pairwise.complete.obs"), 3)),
+              by=visit]
+
+corGene_cterm <- all_DT[,.(pearson=signif(cor(value, cterm,
+                                            use="pairwise.complete.obs"), 3),
+              spearman=signif(cor(value, cterm, method="spearman",
+                                  use="pairwise.complete.obs"), 3)),
+              by=.(gene, visit)]
+
+corAll_cterm %>%
+mutate(pearson=cell_spec(pearson, 
+                         color = ifelse(pearson >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+mutate(spearman=cell_spec(spearman, 
+                        color = ifelse(spearman >= 0.2 | spearman <= -0.2, 
+                                        "red", "black"))) %>%
+headerKable(title="cterm")
+```
+
+####Correlation plots  
+  
+```{r corplots2}
+
+melt(corGene_nanp, measure=c("pearson", "spearman")) %>%
+  ggplot(aes(x=visit, y=value)) + geom_boxplot() + geom_point() +
+  ylim(-1,1) + ggtitle("nanp") + facet_wrap(~variable) + ylab("correlation") +
+  geom_hline(yintercept=c(-0.2, 0.2), linetype="dashed", color = "red")
+
+melt(corGene_cterm, measure=c("pearson", "spearman")) %>%
+  ggplot(aes(x=visit, y=value)) + geom_boxplot() + geom_point() +
+  ylim(-1,1) + ggtitle("cterm") + facet_wrap(~variable) + ylab("correlation") +
+  geom_hline(yintercept=c(-0.2, 0.2), linetype="dashed", color = "red")
+
+```
+
+####Correlation tables  
+  
+Correlations greater than 0.2 or less than -0.2 are in red.   
+  
+```{r cortable2}
+##nanp
+corGene_nanp %>%
+  select(c(gene,visit,spearman)) %>%
+  spread(key="visit", value=c("spearman")) %>%
+  mutate(M0=cell_spec(M0, color = ifelse(M0 >= 0.2 | M0 <= -0.2, 
+                                        "red", "black")))%>%
+  mutate(M3=cell_spec(M3, color = ifelse(M3 >= 0.2 | M3 <= -0.2, 
+                                        "red", "black"))) -> 
+  nanp_spear
+
+corGene_nanp %>%
+  select(c(gene,visit, pearson)) %>%
+  spread(key="visit", value=c("pearson")) %>%
+  mutate(M0=cell_spec(M0, color = ifelse(M0 >= 0.2 | M0 <= -0.2, 
+                                        "red", "black")))%>%
+  mutate(M3=cell_spec(M3, color = ifelse(M3 >= 0.2 | M3 <= -0.2, 
+                                        "red", "black")))  ->
+  nanp_pear
+
+  cbind(nanp_pear, nanp_spear[,-1]) %>%
+    headerKable(title="nanp") %>%
+    add_header_above(c(" "=1, "pearson"=2, "spearman"=2))
+  
+  ## cterm
+  corGene_cterm %>%
+  select(c(gene,visit,spearman)) %>%
+  spread(key="visit", value=c("spearman")) %>%
+  mutate(M0=cell_spec(M0, color = ifelse(M0 >= 0.2 | M0 <= -0.2, 
+                                        "red", "black")))%>%
+  mutate(M3=cell_spec(M3, color = ifelse(M3 >= 0.2 | M3 <= -0.2, 
+                                        "red", "black"))) -> 
+  cterm_spear
+
+corGene_cterm %>%
+  select(c(gene,visit, pearson)) %>%
+  spread(key="visit", value=c("pearson")) %>%
+  mutate(M0=cell_spec(M0, color = ifelse(M0 >= 0.2 | M0 <= -0.2, 
+                                        "red", "black")))%>%
+  mutate(M3=cell_spec(M3, color = ifelse(M3 >= 0.2 | M3 <= -0.2, 
+                                        "red", "black")))  ->
+  cterm_pear
+
+  cbind(cterm_pear, cterm_spear[,-1]) %>%
+    headerKable(title="cterm") %>%
+    add_header_above(c(" "=1, "pearson"=2, "spearman"=2))
+  
+```
+
+
+
+```{r sig3}
+sigSetName <- "enriched in monocytes (I) (M4.15)"
+sigSet <- btm_ind[[sigSetName]]
+```
+
+###`r sigSetName` | IAVA vs RNASeq gene expression 
+  
+Correlations greater than 0.2 or less than -0.2 are in red.  
+  \
+```{r sig1_analysis3}
+
+rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
+all_DT <- data.table(dplyr::inner_join(cyto,rna_DT, by=c("col_id"="Var2")))
+setnames(all_DT, "Var1", "gene")
+
+## nanp
+corAll_nanp <- all_DT[,.(pearson=signif(cor(value, nanp,
+                                            use="pairwise.complete.obs"), 3),
+              spearman=signif(cor(value, nanp, method="spearman",
+                                  use="pairwise.complete.obs"), 3)),
+              by=visit]
+
+corGene_nanp <- all_DT[,.(pearson=signif(cor(value, nanp,
+                                            use="pairwise.complete.obs"), 3),
+              spearman=signif(cor(value, nanp, method="spearman",
+                                  use="pairwise.complete.obs"), 3)),
+              by=.(gene, visit)]
+
+corAll_nanp %>%
+mutate(pearson=cell_spec(pearson, 
+                         color = ifelse(pearson >= 0.2, "red", "black"))) %>%
+mutate(spearman=cell_spec(spearman, 
+                         color = ifelse(spearman >= 0.2, "red", "black"))) %>%
+headerKable(title="nanp")
+
+## cterm
+corAll_cterm <- all_DT[,.(pearson=signif(cor(value, cterm,
+                                            use="pairwise.complete.obs"), 3),
+              spearman=signif(cor(value, cterm, method="spearman",
+                                  use="pairwise.complete.obs"), 3)),
+              by=visit]
+
+corGene_cterm <- all_DT[,.(pearson=signif(cor(value, cterm,
+                                            use="pairwise.complete.obs"), 3),
+              spearman=signif(cor(value, cterm, method="spearman",
+                                  use="pairwise.complete.obs"), 3)),
+              by=.(gene, visit)]
+
+corAll_cterm %>%
+mutate(pearson=cell_spec(pearson, 
+                         color = ifelse(pearson >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+mutate(spearman=cell_spec(spearman, 
+                        color = ifelse(spearman >= 0.2 | spearman <= -0.2, 
+                                        "red", "black"))) %>%
+headerKable(title="cterm")
+```
+
+####Correlation plots  
+  
+```{r corplots3}
+
+melt(corGene_nanp, measure=c("pearson", "spearman")) %>%
+  ggplot(aes(x=visit, y=value)) + geom_boxplot() + geom_jitter() +
+  ylim(-1,1) + ggtitle("nanp") + facet_wrap(~variable) + ylab("correlation") +
+  geom_hline(yintercept=c(-0.2, 0.2), linetype="dashed", color = "red")
+
+melt(corGene_cterm, measure=c("pearson", "spearman")) %>%
+  ggplot(aes(x=visit, y=value)) + geom_boxplot() + geom_jitter() +
+  ylim(-1,1) + ggtitle("cterm") + facet_wrap(~variable) + ylab("correlation") +
+  geom_hline(yintercept=c(-0.2, 0.2), linetype="dashed", color = "red")
+
+```
+
+####Correlation tables  
+  
+Correlations greater than 0.2 or less than -0.2 are in red.   
+  
+```{r cortable3}
+##nanp
+corGene_nanp %>%
+  select(c(gene,visit,spearman)) %>%
+  spread(key="visit", value=c("spearman")) %>%
+  mutate(M0=cell_spec(M0, color = ifelse(M0 >= 0.2 | M0 <= -0.2, 
+                                        "red", "black")))%>%
+  mutate(M3=cell_spec(M3, color = ifelse(M3 >= 0.2 | M3 <= -0.2, 
+                                        "red", "black"))) -> 
+  nanp_spear
+
+corGene_nanp %>%
+  select(c(gene,visit, pearson)) %>%
+  spread(key="visit", value=c("pearson")) %>%
+  mutate(M0=cell_spec(M0, color = ifelse(M0 >= 0.2 | M0 <= -0.2, 
+                                        "red", "black")))%>%
+  mutate(M3=cell_spec(M3, color = ifelse(M3 >= 0.2 | M3 <= -0.2, 
+                                        "red", "black")))  ->
+  nanp_pear
+
+  cbind(nanp_pear, nanp_spear[,-1]) %>%
+    headerKable(title="nanp") %>%
+    add_header_above(c(" "=1, "pearson"=2, "spearman"=2))
+  
+  ## cterm
+  corGene_cterm %>%
+  select(c(gene,visit,spearman)) %>%
+  spread(key="visit", value=c("spearman")) %>%
+  mutate(M0=cell_spec(M0, color = ifelse(M0 >= 0.2 | M0 <= -0.2, 
+                                        "red", "black")))%>%
+  mutate(M3=cell_spec(M3, color = ifelse(M3 >= 0.2 | M3 <= -0.2, 
+                                        "red", "black"))) -> 
+  cterm_spear
+
+corGene_cterm %>%
+  select(c(gene,visit, pearson)) %>%
+  spread(key="visit", value=c("pearson")) %>%
+  mutate(M0=cell_spec(M0, color = ifelse(M0 >= 0.2 | M0 <= -0.2, 
+                                        "red", "black")))%>%
+  mutate(M3=cell_spec(M3, color = ifelse(M3 >= 0.2 | M3 <= -0.2, 
+                                        "red", "black")))  ->
+  cterm_pear
+
+  cbind(cterm_pear, cterm_spear[,-1]) %>%
+    headerKable(title="cterm") %>%
+    add_header_above(c(" "=1, "pearson"=2, "spearman"=2))
+  
+```
+
+

@@ -1,0 +1,107 @@
+---
+title: "Integrate ICS CD4 and RNASeq data"
+subtitle: "CSP"
+author: "Carl Murie and Raphael Gottardo"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   BiocStyle::html_document:
+    theme: lumen
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r packages}
+library(RNASeqUtilities)
+library(Biobase)
+library(limma)
+library(magrittr)
+library(here)
+library(data.table)
+library(survival)   ## clogit
+library(GSEABase)
+library(tidyverse)
+library(gridExtra)
+
+source(here("code", "mal_utilities.R"))
+```
+
+```{r load-data}
+library(mal067data)
+data(mal067_eset)
+```
+
+
+```{r gsea}
+min_gene_set <- 5
+
+## set up GSEA analysis
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+```
+
+
+```{r getmorevars}
+pfs <- readRDS(here("data/CD4_CSP_PFS.rds"))
+stim <- "csp"
+```
+
+```{r format}
+
+## prune rnaseq eset to contain only same stimulations and sids
+var_sids <- unique(pfs$PTID)
+
+pData(mal067_eset) %>%
+  filter(stimulation==stim) %>%
+  filter(sid %in% var_sids) %$%
+  col_id ->
+  overlap
+
+prune_meta <- mal067_voom[,overlap]
+prune_meta$targets <- prune_meta$targets[,c("col_id", "case", "vaccine", "sid",
+                                            "pid", "visit", "stimulation", "age")]
+
+## filter ics data to reduce size
+pfs %>%
+  select(c(sid, PFS)) ->
+  data
+```
+
+```{r read_child}
+## read in child file for rendering
+child1 <- here::here("analysis/children", "exp_Var_RNA_Cor.Rmd")
+childy <- read_file(child1)
+```
+
+
+# Correlate Polyfunctionality Score (PFS) to RNASeq gene expression   
+  
+Only patients given the RTS,S vaccine for visit M3 are included in the analysis.  
+  
+```{r}
+sigSetName <-  "enriched in monocytes (I) (M4.15)"
+```
+
+`r paste(knit_child(text = childy), collapse = '\n')`
+</br>
+  
+```{r}
+sigSetName <- "enriched in myeloid cells and monocytes (M81)"
+```
+  
+`r paste(knit_child(text = childy), collapse = '\n')`
+</br>
+  
+```{r}
+sigSetName <- "NK cell surface signature (S1)"
+```
+
+`r paste(knit_child(text = childy), collapse = '\n')`
+</br>
+

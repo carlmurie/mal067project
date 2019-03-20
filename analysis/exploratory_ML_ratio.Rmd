@@ -1,0 +1,133 @@
+---
+title: "Monocyte Lymphocyte Ratio"
+author: "Carl Murie and Raphael Gottardo"
+date: "January 10, 2019"
+output: 
+   workflowr::wflow_html:
+    theme: lumen
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r load-packages}
+library(RNASeqUtilities)
+library(Biobase)
+library(limma)
+library(tidyverse)
+library(magrittr)
+library(here)
+library(data.table)
+library(survival)   ## clogit
+library(GSEABase)
+library(MAL067Package)
+
+source(here("code", "mal_utilities.R"))
+```
+
+
+```{r load-data}
+library(mal067data)
+data(mal067_meta_flow)
+
+## get monocyte and lymphocyte populations
+read_tsv(here::here("data/170830-RTSS case control phenotyping.txt"),
+         col_types=cols_only(PTID=col_character(),
+                             VISITNO=col_character(),
+                             Lineage=col_character(),
+                             Count=col_double()))  %>%
+  filter(grepl("Mono$", Lineage)  | 
+         grepl("^Lymphocyte", Lineage)) %>%
+  filter(PTID != "FH12 (SAC207295)") %>%   ## remove control samples 
+  data.table() ->
+  flow1
+
+## reshape for convenience
+dcast(flow1, formula="PTID+VISITNO~Lineage", value.var="Count") %>% 
+  dplyr::rename(Intermediate=`CD14+CD16+ Intermediate Mono`,
+                Classical=`CD14+CD16- Classical Mono`,
+                Inflammatory=`CD14loCD16hi Inflammatory Mono`) ->
+  flow
+
+## get common data and remove duplicated sid in mal067_meta_flow
+common <- intersect(flow$PTID, mal067_meta_flow$sid)
+mal067_meta_flow %>%
+  filter(sid %in% common) %>%
+  filter(!duplicated(sid)) %>%
+  dplyr::select(sid, case, sex, match) -> 
+  mal_filtered
+
+num_na <- sum(is.na(mal_filtered$match))
+
+## join case factor to flow data
+dplyr::left_join(flow, mal_filtered, by=c("PTID"="sid")) %>%
+  filter(!is.na(match)) %>%
+  mutate(case_logit:=as.numeric(plyr::mapvalues(as.character(case),
+                                          from=c("control","case"), 
+                                          to=c(0,1)))) %>%
+  mutate(VISITNO=factor(VISITNO)) %>%
+  data.table() ->
+  flow_dt
+
+## calculate ratios
+flow_dt[, ml_ratio:=Classical/Lymphocytes]
+flow_dt[, ml_ratio_sum:=(Classical+Inflammatory+Intermediate)/Lymphocytes]
+
+```
+
+#Test monocyte/lymphocyte ratios for disease (case) prediction  
+  
+The four cell subsets used in this analysis are:  
+
+`r headerKable(data.frame(subsets=unique(flow1$Lineage)))`  
+  
+clogit regression will be applied with the following formula:  
+  
+case ~ ml_ratio + sex + strata(match)  
+  
+`r num_na` samples were removed due to no match variable.
+
+##Sample size  
+  
+Samples for each cell subset.  
+  
+```{r samples}
+countSampleSizes(flow_dt, "VISITNO", c("sex", "case")) %>%
+headerKable(labels=c("gender", "disease"), levels=c(2,2))
+```
+
+
+##Classical Monocyte/Lymphocytes
+
+```{r class}
+
+logit_pvals <- flow_dt[,summary(clogit(case_logit~ml_ratio+sex+strata(match)))$coefficients["ml_ratio", 5], by=VISITNO]
+
+colnames(logit_pvals) <- c("visit", "p-value")
+headerKable(logit_pvals)
+
+ggplot(flow_dt, aes(x=case, y=ml_ratio, color=case)) + geom_boxplot() +
+  facet_wrap(~VISITNO)
+
+```
+
+
+##Classical+Intermediate+Inflammatory Monocyte/Lymphocytes
+
+```{r class_sum}
+
+logit_pvals <- flow_dt[,summary(clogit(case_logit~ml_ratio_sum+sex+strata(match)))$coefficients["ml_ratio_sum", 5], by=VISITNO]
+
+colnames(logit_pvals) <- c("visit", "p-value")
+headerKable(logit_pvals)
+
+ggplot(flow_dt, aes(x=case, y=ml_ratio, color=case)) + geom_boxplot() +
+  facet_wrap(~VISITNO)
+
+```
+

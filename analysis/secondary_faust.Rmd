@@ -1,0 +1,254 @@
+---
+title: "Faust monocyte analysis"
+author: "Carl Murie and Raphael Gottardo"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   workflowr::wflow_html:
+    theme: lumen
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r load-packages}
+library(RNASeqUtilities)
+library(Biobase)
+library(limma)
+library(tidyverse)
+library(magrittr)
+library(here)
+library(data.table)
+library(survival)   ## clogit
+library(GSEABase)
+
+source(here("code", "mal_utilities.R"))
+```
+
+
+```{r load-data}
+library(mal067data)
+data(mal067_meta_flow)
+
+## get phenotyping meta-data and remove duplicated pid+visit samples
+mal067_meta_flow %>%
+  as.data.table() %>%
+  unique(by=c("pid", "visit")) ->
+  mal_pheno
+
+faust1 <- read.csv(here("data", "faustOutputAllRtss_v02.csv"))
+popLabel <- as.character(unique(faust1$populationLabel))
+
+## there is one set of two technical replicates (I assume) so average them
+# (2845+M3)
+faust2 <- aggregate(formula=proportion~pid+VISITNO, data=faust1, FUN=mean)
+
+## join and reformat the monocyte counts with the phenotype meta-data
+dplyr::left_join(faust2, mal_pheno, by=c("pid", "VISITNO" = "visit")) %>%
+  mutate(FrequencySQRT= sqrt(proportion)) %>%
+  
+  ## clogit needs case as a binary value (0,1)
+  mutate(case_logit:=as.numeric(plyr::mapvalues(as.character(case), from=c("control", "case"), to=c(0,1)))) %>%
+  as.data.table() ->
+  faust
+  
+```
+
+
+```{r dups, eval=FALSE}
+
+# investigate duplicated pid+visit samples
+ids <- paste(faust1$pid, faust1$VISITNO, sep="_")
+dup <- str_split(ids[duplicated(ids)], pattern="_")
+```
+
+Faust monocyte gating population:  
+  
+`r popLabel`  
+
+
+#Sample sizes
+
+```{r sample-sizes}
+
+tab <- countSampleSizes(faust, "VISITNO", c("age", "case", "vaccine", "site"))
+headerKable(tab, c("age", "disease", "vaccine", "site"), c(2,2,2,3))
+
+```
+
+#Test for disease prediction
+
+Apply clogit testing with formula: case ~ sqrt(proportion) + sex + strata(match)
+
+```{r logit}
+ 
+logit_pvals <- faust[, summary(clogit(case_logit~FrequencySQRT+sex+strata(match) ))$coefficients["FrequencySQRT", 5], by=VISITNO]
+
+colnames(logit_pvals) <- c("visit", "p-value")
+
+headerKable(logit_pvals)
+
+ggplot(faust, aes(x=case, y=FrequencySQRT, color=case)) + geom_boxplot() +
+  facet_wrap(~VISITNO)
+
+```
+
+#Correlate monocyte frequency to gene expression   
+  
+Use only dmso samples for RNASeq gene expression.  
+  
+```{r gene-exp}
+
+common <- intersect(faust$pid, mal067_eset$pid)
+
+faust %>%
+  filter(pid %in% common) ->
+  faust1
+
+rnaInd <- mal067_eset$pid %in% common & mal067_eset$stimulation=="dmso"
+
+gene_dt <- melt(mal067_voom$E[,rnaInd])
+gene_dt <- dplyr::left_join(gene_dt, pData(mal067_eset)[,c("col_id", "case", "vaccine", "pid", "visit")], by=c("Var2" = "col_id"))
+
+all_dt <- dplyr::left_join(faust1, gene_dt, by=c("pid", "VISITNO" = "visit"))
+
+## remove samples for pids that don't have M0 gene expression samples
+all_dt[!is.na(all_dt$vaccine.y),] %>%
+  as.data.table() ->
+  all_dt
+
+##ggplot(all_dt, aes(x=proportion, y=value, color=case.x)) + geom_point() + facet_wrap(~VISITNO)
+
+```
+
+##Sample sizes  
+  
+```{r samps}
+
+samp_dt <- all_dt[Var1=="A1BG"]
+samps <- countSampleSizes(samp_dt, "VISITNO", 
+                          c("case.x", "vaccine.x", "age"))
+headerKable(samps, labels=c("case", "vaccine", "age"), 
+            levels=c(2,2,2))
+
+```
+
+
+```{r gsea}
+min_gene_set <- 5
+
+## set up GSEA analysis
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+```
+
+
+```{r monocytes}
+gene_set <- "enriched in monocytes (I) (M4.15)"
+genes <- geneIds(btm_gtm[[gene_set]])
+```
+
+##`r gene_set`  
+  
+```{r set1}
+btm_dt <- all_dt[Var1 %in% genes]
+
+corAllClass <- btm_dt[,.(pearson=signif(cor(value, FrequencySQRT), 3),
+              spearman=signif(cor(value, FrequencySQRT,
+                                  method="spearman"), 3))]
+
+corGeneClass <- btm_dt[,.(pearson=signif(cor(value, FrequencySQRT), 3),
+              spearman=signif(cor(value, FrequencySQRT,
+                                  method="spearman"), 3)),
+              by=Var1]
+
+headerKable(corAllClass)
+##headerKable(corGeneClass)
+
+## make correlation boxplot
+ggplot(melt(corGeneClass, id.vars=c("Var1")),aes(x=variable, y=value))+  geom_boxplot() + geom_point() + ylim(-1,1) + 
+  ggtitle("rnaseq cpm vs FAUST frequency correlation by gene") + 
+  xlab("type") + ylab("correlation") + 
+  geom_hline(yintercept=c(-.5, 0, .5), linetype="dotted")
+ 
+ggplot(btm_dt, aes(x=FrequencySQRT, y=value, color=case.x)) +
+  geom_point(size=0.5) + facet_wrap(~VISITNO, scales="free") +
+  geom_smooth(method="lm") + xlab("sqrt frequency") +ylab("log2 CPM") +
+  geom_smooth(aes(x=FrequencySQRT, y=value), method="lm", color="blue")  
+```
+
+
+```{r myeloid}
+gene_set <- "enriched in myeloid cells and monocytes (M81)"
+genes <- geneIds(btm_gtm[[gene_set]])
+```
+
+##`r gene_set`  
+  
+```{r set2}
+btm_dt <- all_dt[Var1 %in% genes]
+
+corAllClass <- btm_dt[,.(pearson=signif(cor(value, FrequencySQRT), 3),
+              spearman=signif(cor(value, FrequencySQRT,
+                                  method="spearman"), 3))]
+
+corGeneClass <- btm_dt[,.(pearson=signif(cor(value, FrequencySQRT), 3),
+              spearman=signif(cor(value, FrequencySQRT,
+                                  method="spearman"), 3)),
+              by=Var1]
+
+headerKable(corAllClass)
+##headerKable(corGeneClass)
+
+## make correlation boxplot
+ggplot(melt(corGeneClass, id.vars=c("Var1")),aes(x=variable, y=value))+  geom_boxplot() + geom_point() + ylim(-1,1) + 
+  ggtitle("rnaseq cpm vs FAUST frequency correlation by gene") + 
+  xlab("type") + ylab("correlation") + 
+  geom_hline(yintercept=c(-.5, 0, .5), linetype="dotted")
+ 
+ggplot(btm_dt, aes(x=FrequencySQRT, y=value, color=case.x)) +
+  geom_point(size=0.5) + facet_wrap(~VISITNO, scales="free") +
+  geom_smooth(method="lm") + xlab("sqrt frequency") +ylab("log2 CPM") +
+  geom_smooth(aes(x=FrequencySQRT, y=value), method="lm", color="blue")  
+```
+
+
+```{r NKcell}
+gene_set <- "NK cell surface signature (S1)"
+genes <- geneIds(btm_gtm[[gene_set]])
+```
+
+##`r gene_set`  
+  
+```{r set3}
+btm_dt <- all_dt[Var1 %in% genes]
+
+corAllClass <- btm_dt[,.(pearson=signif(cor(value, FrequencySQRT), 3),
+              spearman=signif(cor(value, FrequencySQRT,
+                                  method="spearman"), 3))]
+
+corGeneClass <- btm_dt[,.(pearson=signif(cor(value, FrequencySQRT), 3),
+              spearman=signif(cor(value, FrequencySQRT,
+                                  method="spearman"), 3)),
+              by=Var1]
+
+headerKable(corAllClass)
+##headerKable(corGeneClass)
+
+## make correlation boxplot
+ggplot(melt(corGeneClass, id.vars=c("Var1")),aes(x=variable, y=value))+  geom_boxplot() + geom_point() + ylim(-1,1) + 
+  ggtitle("rnaseq cpm vs FAUST frequency correlation by gene") + 
+  xlab("type") + ylab("correlation") + 
+  geom_hline(yintercept=c(-.5, 0, .5), linetype="dotted")
+ 
+ggplot(btm_dt, aes(x=FrequencySQRT, y=value, color=case.x)) +
+  geom_point(size=0.5) + facet_wrap(~VISITNO, scales="free") +
+  geom_smooth(method="lm") + xlab("sqrt frequency") +ylab("log2 CPM") +
+  geom_smooth(aes(x=FrequencySQRT, y=value), method="lm", color="blue")  
+```
+

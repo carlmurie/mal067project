@@ -1,0 +1,372 @@
+---
+title: "Integrate cytokine and RNASeq data"
+author: "Carl Murie and Raphael Gottardo"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   BiocStyle::html_document:
+    theme: lumen
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r packages}
+library(RNASeqUtilities)
+library(Biobase)
+library(limma)
+library(magrittr)
+library(here)
+library(data.table)
+library(survival)   ## clogit
+library(GSEABase)
+library(tidyverse)
+library(gridExtra)
+
+source(here("code", "mal_utilities.R"))
+```
+
+```{r load-data}
+library(mal067data)
+data(mal067_eset)
+meta_dt <- as_tibble(pData(mal067_eset))
+```
+
+
+```{r gsea}
+min_gene_set <- 5
+
+## set up GSEA analysis
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+```
+
+
+```{r getmorevars}
+
+## l_df_flow and l_df_rna
+##
+## 1. cytokines: stimulation (HBS, CSP),antigens (28), and log10 stim/DMSO ratios
+## 2. IAVI: IgG (CSP - NANP), IgG (CSP - C-term)
+## 3. CEVAC: IgG CSP-NANP titers, IgG HBsAg titers (both in log10 of the titers)
+## 4. antibody Luminex: isotope (IgG, IgM), analyte (42 antigens), log10 of the
+##                      median fluorecence intensity
+load("data/m067_seattle_data.RData")
+
+```
+
+# Cytokines and RNASeq analysis  
+  
+Database of  cytokine Luminex contains 3 new variables: stimulation (CSP and HBS), analyte (28 antigens) and the Log10_ratio_conc_imp_trunc (log10 of the CSP/DMSO and HBS/DMSO of the ratio).  
+  
+```{r cytokines} 
+
+## format rnaseq meta data
+meta_dt %>%
+  filter(visit=="M3") %>%
+  filter(vaccine=="rtss") %>%
+  mutate(stimulation=as.character(stimulation)) %>%
+  dplyr::select(sid, stimulation, col_id, case, malaria_status, match) ->
+  meta_cyto
+
+## format cytokine data
+l_df_rna[[1]] %>%
+  mutate(sid=as.character(sid)) %>%
+  mutate(stimulation=tolower(stimulation)) ->
+  df_rna
+
+##countSampleSizes(df_rna, "analyte", c("stimulation", "case")) %>%
+##  headerKable()
+
+## join cytokine data with rnaseq meta data
+dplyr::inner_join(df_rna, meta_cyto, by=c("sid", "stimulation")) %>%
+dplyr::rename(log10_ratio = Log10_ratio_conc_imp_trunc) ->
+  cyto
+
+## check that total sample size is correct
+total <- length(intersect(paste(meta_cyto$stimulation,meta_cyto$sid),
+                          paste(df_rna$stimulation, df_rna$sid))) *
+  length(unique(df_rna$analyte))
+if(total != nrow(cyto)) {stop("Sample size is not correct")}
+
+```
+
+## Sample size
+
+###cytokine database  
+  
+```{r samplesize1}
+countSampleSizes(df_rna, "analyte", c("stimulation", "vaccine")) %>%
+  headerKable()
+```
+ 
+###Plot of cytokine database  
+  
+```{r plotty}
+
+tmp <- data.table(df_rna)[stimulation=="csp"]
+ggplot(tmp, aes(x=1:nrow(tmp), y=Log10_ratio_conc_imp_trunc)) +
+  geom_point() + facet_wrap(~analyte) +
+  xlab("order") + ggtitle("CSP: log10_ratio")
+```
+ 
+###after joining rnaSeq meta-data and cytokine database  
+  
+All comparator samples were removed.  
+  
+```{r samplesize2}
+
+countSampleSizes(cyto, "analyte", c("stimulation", "case", "vaccine")) %>%
+  headerKable()
+
+
+```
+
+## Disease prediction  
+
+A clogit test of case-control vs cytokine ratio with gender and match as a stratified variable was applied to the cytokine frequency.  
+
+```{r cyto_logit}
+
+## gather just case/control samples which the match stratified variable
+cyto %>%
+  filter(case != "neither") %>%
+  mutate(case = fct_drop(case)) %>%                    ## remove "neither" level
+  ## clogit needs case as a binary value (0,1)
+  mutate(case_logit=as.numeric(plyr::mapvalues(as.character(case), 
+                                               from=c("control", "case"),
+                                               to=c(0,1)))) %>%
+  as.data.table() ->
+  cyto_logit
+```
+
+##Sample size  
+  
+```{r sample3}
+countSampleSizes(cyto_logit, "analyte", c("stimulation", "case")) %>%
+  headerKable()
+```
+
+```{r output}
+ pvals <- cyto_logit[,summary(clogit(case_logit~sex+log10_ratio+strata(match)))$coefficient["log10_ratio", 5], by=.(stimulation, analyte)]
+ 
+  ## plot boxplots of log10 ratio to case/control
+ gg_csp <- ggplot(cyto_logit[stimulation=="csp"], aes(x=case, y=log10_ratio)) + 
+   geom_boxplot() + xlab("case") + facet_wrap(~analyte) + ggtitle("CSP")
+ 
+ gg_hbs <- ggplot(cyto_logit[stimulation=="hbs"], aes(x=case, y=log10_ratio)) + 
+   geom_boxplot() + xlab("case") + facet_wrap(~analyte) + ggtitle("HBS")
+
+ ## output p-values and plots
+ pvals %>% 
+   mutate(V1=signif(V1, 4)) %>%
+   dplyr::rename("p-value"=V1) %>%
+   spread(key="stimulation", value="p-value") %>%
+   mutate(csp_fdr=p.adjust(csp, method="fdr")) %>%
+   mutate(csp_fdr=signif(csp_fdr, 4)) %>%
+   mutate(hbs_fdr=p.adjust(hbs, method="fdr")) %>%
+   mutate(hbs_fdr=signif(hbs_fdr, 4)) %>%
+   mutate(csp=cell_spec(csp, color = ifelse(csp <= 0.2, "red", "black"))) %>%
+   mutate(hbs=cell_spec(hbs, color = ifelse(hbs <= 0.2, "red", "black"))) %>%
+   mutate(csp_fdr=cell_spec(csp_fdr, color = ifelse(csp_fdr <= 0.2, 
+                                                    "red", "black"))) %>%
+   mutate(hbs_fdr=cell_spec(hbs_fdr, color = ifelse(hbs_fdr <= 0.2, 
+                                                    "red", "black"))) %>%
+ headerKable(title="clogit p-values")
+ 
+```
+ 
+##Log10 ratio plots of case and control
+ 
+```{r plots} 
+ print(gg_csp)
+ print(gg_hbs)
+```
+  
+##Correlations between cytokine ratios and RNASeq gene expression for significant GSEA gene-sets  {.tabset .tabset-fade .tabset-pills}  
+  
+  
+```{r sig1}
+sigSetName <- "enriched in myeloid cells and monocytes (M81)"
+sigSet <- btm_ind[[sigSetName]]
+```
+  
+###`r sigSetName` | cytokine ratios vs RNASeq gene expression 
+
+Correlations greater than 0.2 or less than -0.2 are in red.   
+  
+```{r sig1_analysis}
+
+rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
+all_DT <- data.table(dplyr::inner_join(cyto,rna_DT, by=c("col_id"="Var2")))
+setnames(all_DT, "Var1", "gene")
+
+corAllClass <- all_DT[,.(pearson=signif(cor(value, log10_ratio), 3),
+              spearman=signif(cor(value, log10_ratio,
+                                  method="spearman"), 3)),
+              by=analyte]
+
+corGeneClass <- all_DT[,.(pearson=signif(cor(value, log10_ratio), 3),
+              spearman=signif(cor(value, log10_ratio,
+                                  method="spearman"), 3)),
+              by=.(gene, analyte)]
+
+corAllClass %>%
+mutate(pearson=cell_spec(pearson, 
+                         color = ifelse(pearson >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+mutate(spearman=cell_spec(spearman, 
+                         color = ifelse(spearman >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+headerKable()
+```
+
+####Correlation plots
+```{r corplots}
+
+ggplot(corGeneClass, aes(x=analyte, y=pearson)) + geom_boxplot() + ylim(-1,1)
+ggplot(corGeneClass, aes(x=analyte, y=spearman)) + geom_boxplot() + ylim(-1,1)
+```
+
+####Correlation tables  
+ 
+```{r cortable}
+
+cor_spear <- spread(corGeneClass[,-"pearson"], key="analyte", value=c("spearman"))
+cor_pear <- spread(corGeneClass[,-"spearman"], key="analyte", value=c("pearson"))
+
+headerKable(cor_pear, title="spearman") %>%
+  scroll_box(width = "500px")
+
+headerKable(cor_spear, title="spearman") %>%
+  scroll_box(width = "500px")
+
+```
+
+
+
+
+```{r sig2}
+sigSetName <- "NK cell surface signature (S1)"
+sigSet <- btm_ind[[sigSetName]]
+```
+  
+###`r sigSetName` | cytokine ratios vs RNASeq gene expression  
+  
+Correlations greater than 0.2 or less than -0.2 are in red.   
+  
+```{r sig2_analysis}
+
+rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
+all_DT <- data.table(dplyr::inner_join(cyto,rna_DT, by=c("col_id"="Var2")))
+setnames(all_DT, "Var1", "gene")
+
+corAllClass <- all_DT[,.(pearson=signif(cor(value, log10_ratio), 3),
+              spearman=signif(cor(value, log10_ratio,
+                                  method="spearman"), 3)),
+              by=analyte]
+
+corGeneClass <- all_DT[,.(pearson=signif(cor(value, log10_ratio), 3),
+              spearman=signif(cor(value, log10_ratio,
+                                  method="spearman"), 3)),
+              by=.(gene, analyte)]
+
+corAllClass %>%
+mutate(pearson=cell_spec(pearson, 
+                         color = ifelse(pearson >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+mutate(spearman=cell_spec(spearman, 
+                         color = ifelse(spearman >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+headerKable()
+```
+
+####Correlation plots
+```{r corplots2}
+
+ggplot(corGeneClass, aes(x=analyte, y=pearson)) + geom_boxplot() + ylim(-1,1)
+ggplot(corGeneClass, aes(x=analyte, y=spearman)) + geom_boxplot() + ylim(-1,1)
+```
+
+####Correlation tables  
+
+```{r cortable2}
+
+cor_spear <- spread(corGeneClass[,-"pearson"], key="analyte", value=c("spearman"))
+cor_pear <- spread(corGeneClass[,-"spearman"], key="analyte", value=c("pearson"))
+
+headerKable(cor_pear, title="spearman") %>%
+  scroll_box(width = "500px")
+
+headerKable(cor_spear, title="spearman") %>%
+  scroll_box(width = "500px")
+
+```
+
+
+
+
+```{r sig3}
+sigSetName <- "enriched in monocytes (I) (M4.15)"
+sigSet <- btm_ind[[sigSetName]]
+```
+  
+###`r sigSetName` | cytokine ratios vs RNASeq gene expression  
+  
+Correlations greater than 0.2 or less than -0.2 are in red.   
+  
+```{r sig3_analysis}
+
+rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
+all_DT <- data.table(dplyr::inner_join(cyto,rna_DT, by=c("col_id"="Var2")))
+setnames(all_DT, "Var1", "gene")
+
+corAllClass <- all_DT[,.(pearson=signif(cor(value, log10_ratio), 3),
+              spearman=signif(cor(value, log10_ratio,
+                                  method="spearman"), 3)),
+              by=analyte]
+
+corGeneClass <- all_DT[,.(pearson=signif(cor(value, log10_ratio), 3),
+              spearman=signif(cor(value, log10_ratio,
+                                  method="spearman"), 3)),
+              by=.(gene, analyte)]
+
+corAllClass %>%
+mutate(pearson=cell_spec(pearson, 
+                         color = ifelse(pearson >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+mutate(spearman=cell_spec(spearman, 
+                         color = ifelse(spearman >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+headerKable()
+```
+
+####Correlation plots
+```{r corplots3}
+
+ggplot(corGeneClass, aes(x=analyte, y=pearson)) + geom_boxplot() + ylim(-1,1)
+ggplot(corGeneClass, aes(x=analyte, y=spearman)) + geom_boxplot() + ylim(-1,1)
+```
+
+####Correlation tables  
+  
+Correlations greater than 0.2 or less than -0.2 are in red.  
+
+```{r cortable3}
+
+cor_spear <- spread(corGeneClass[,-"pearson"], key="analyte", value=c("spearman"))
+cor_pear <- spread(corGeneClass[,-"spearman"], key="analyte", value=c("pearson"))
+
+headerKable(cor_pear, title="spearman") %>%
+  scroll_box(width = "500px")
+
+headerKable(cor_spear, title="spearman") %>%
+  scroll_box(width = "500px")
+
+```
+

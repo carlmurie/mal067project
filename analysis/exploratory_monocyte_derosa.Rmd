@@ -1,0 +1,189 @@
+---
+title: "RTSS GSEA ~ monocyte report"
+author: "Carl Murie"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+ html_document:
+    theme: lumen
+    toc: true
+    toc_float: true
+    number_sections: true
+    df_print: paged
+    code_folding: hide
+---
+
+```{r overall-knitr-options, cache=FALSE, echo=FALSE, message=FALSE, warning=FALSE, results="hide"}
+library(knitr)
+
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE,
+               results='asis')
+  
+  library(dplyr)
+  library(RNASeqUtilities)
+  library(data.table)
+  library(Biobase)
+  library(edgeR)
+  library(GSEABase)
+  library(DT)
+  library(limma)
+  library(ggplot2)
+  library(gridExtra)
+  library(kableExtra)
+  library(tidyverse)
+  library(survival)    ## clogit
+  library(lme4)        ## glmer
+```
+
+
+```{r load-data}
+library(mal067data)
+data(mal067_meta_flow)
+
+mal067_meta_master <- rbind(mal067_meta_flow[,c("sid", "visit", "vaccine", "case", "match", "sex")], mal067_meta_rnaseq[,c("sid", "visit", "vaccine", "case", "match", "sex")])
+
+mal067_meta_master %>%
+  filter(!duplicated(sid)) %>%
+  dplyr::select(c(sid, visit, vaccine, case, match, sex)) ->
+  mal_pheno
+
+## deRosa phenotype frequencies
+flow <- read.table(here::here("data/phenoLineagePctLive.txt"),
+          sep="\t", stringsAsFactors=FALSE, header=TRUE,
+          row.names=NULL)[,c("PTID","VISITNO","Lineage","Label","Pct.of.live")] 
+
+flow %>%
+setnames(c("Lineage", "Pct.of.live"), c("Population", "Frequency")) %>%
+mutate(Frequency=sqrt(Frequency/100))  ->         ## convert to proportion 
+         flowData1
+
+## PTID "FH12 (SAC207295)" was discarded as there no samples in meta_master. I 
+## assume these are some kind of control.
+
+## Also PTID (sid) 5094082 was assigned visit M0 in the flow phenotype data and 
+## assigned visit M3 in the meta_master data. I have contacted Barcelona for 
+## clarification but for now I am just removing it.
+dplyr::inner_join(flowData1, mal_pheno, by=c("PTID"="sid")) %>%
+  ##filter(PTID != "5094082") %>%
+  mutate(match=as.numeric(match)) ->
+  flowData
+```
+
+# DeRosa phenotype cell subset frequencies  
+  
+##Sample sizes
+  
+```{r case_sample}
+countSampleSizes(flowData[!duplicated(flowData$PTID),], "visit", 
+                 c("case", "vaccine")) %>%
+  headerKable(labels=c("disease", "vaccine"), levels=c(3,2))
+```
+  
+# Case vs control for all phenotype populations  
+  
+A clogit test of case-control vs frequency (on sqrt scale) with gender and match as a stratified variable was applied to the cell frequency. 
+
+##Sample sizes  
+  
+Per cell population
+  
+```{r case}
+
+flowData %>%
+  filter(case != "neither") %>%
+  mutate(case=fct_drop(case)) %>%
+  filter(vaccine == "rtss") %>%
+  mutate(case_logit=as.numeric(plyr::mapvalues(case, 
+                                               from=c("control", "case"),
+                                               to=c(0,1)))) %>%   
+  data.table() -> 
+  case_data
+
+countSampleSizes(case_data[Population=="CD19+"], "visit", c("case", "vaccine", "sex")) %>%
+  headerKable(labels=c("disease", "vaccine", "gender"), levels=c(2,2,2))
+```
+ 
+## clogit pValues  
+  
+```{r disease}
+
+logit_pvals <- case_data[, signif( summary(clogit(case_logit~Frequency+sex+strata(match)))$coefficients["Frequency", 5], 3), by=.(visit, Population)]
+
+logit_pvals %>%
+  spread(key=visit, value=V1) %>%
+  mutate(M0_fdr=signif(p.adjust(M0, method="fdr"), 3)) %>%
+  mutate(M3_fdr=signif(p.adjust(M3, method="fdr"), 3)) %>%
+  mutate(M0=cell_spec(M0, color = ifelse(M0 <= 0.2, "red", "black"))) %>%
+  mutate(M3=cell_spec(M3, color = ifelse(M3 <= 0.2, "red", "black"))) %>%
+  mutate(M0_fdr=cell_spec(M0_fdr, color = ifelse(M0_fdr<=0.2, "red", "black"))) %>%
+  mutate(M3_fdr=cell_spec(M3_fdr, color = ifelse(M3_fdr<=0.2, "red", "black"))) ->
+  pvals
+
+ headerKable(pvals)
+```
+  
+## Plots of square root of cell subset frequency  
+  
+```{r ggplot}
+
+ ## plot boxplots of log10 ratio to case/control
+ ggplot(case_data[visit=="M0"], aes(x=case, y=Frequency)) + 
+   geom_boxplot() + xlab("case") + facet_wrap(~Population) + ggtitle("M0")
+
+ ggplot(case_data[visit=="M3"], aes(x=case, y=Frequency)) + 
+   geom_boxplot() + xlab("case") + facet_wrap(~Population) + ggtitle("M3")
+
+```
+
+# Vaccine effect for all phenotype populations  
+  
+A clogit test of vaccine vs frequency (on sqrt scale) with gender and match as a stratified variable was applied to the cell frequency.  
+  
+This includes all case/control subjects and both rtss and comparator but only visit M3.
+
+##Sample sizes  
+  
+Per cell population
+  
+```{r vacc_sample}
+
+flowData %>%
+  filter(visit=="M3") %>%
+  mutate(vaccine=as.character(vaccine)) %>%
+  mutate(vacc_logit=as.numeric(plyr::mapvalues(vaccine, 
+                                               from=c("comparator", "rtss"),
+                                               to=c(0,1)))) %>%   
+  data.table() -> 
+  vacc_data
+
+countSampleSizes(vacc_data[Population=="CD19+"], "vaccine", c("case", "sex")) %>%
+  headerKable(labels=c("disease", "gender"), levels=c(3,2))
+```
+ 
+## clogit pValues  
+  
+```{r vaccine}
+
+##logit_pvals <- vacc_data[, signif( summary(clogit(vacc_logit~Frequency+sex+strata(match)))$coefficients["Frequency", 5], 3), by=.(Population)]
+
+logit_pvals <- vacc_data[, signif(summary(glmer(vacc_logit~Frequency+sex+(1|match), family="binomial"))$coefficients["Frequency", 4], 3), by=.(Population)]
+
+colnames(logit_pvals)[2] <- "pValue"
+
+logit_pvals %>%
+  mutate(fdr=signif(p.adjust(pValue, method="fdr"), 3)) %>%
+  mutate(pValue=cell_spec(pValue, color = ifelse(pValue<=0.2, "red", "black"))) %>%
+  mutate(fdr=cell_spec(fdr, color = ifelse(fdr<=0.2, "red", "black"))) ->
+  pvals
+
+ headerKable(pvals)
+```
+  
+## Plots of square root of cell subset frequency  
+  
+```{r ggplot2}
+
+ ## plot boxplots of log10 ratio to case/control
+ ggplot(vacc_data, aes(x=vaccine, y=Frequency)) + 
+   geom_boxplot() + xlab("vaccine") + facet_wrap(~Population) + ggtitle("M3")
+
+```

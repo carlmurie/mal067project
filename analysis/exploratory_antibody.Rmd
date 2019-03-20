@@ -1,0 +1,300 @@
+---
+title: "Integrate antibody and RNASeq data"
+author: "Carl Murie and Raphael Gottardo"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   BiocStyle::html_document:
+    theme: lumen
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r packages}
+library(RNASeqUtilities)
+library(Biobase)
+library(limma)
+library(magrittr)
+library(here)
+library(data.table)
+library(survival)   ## clogit
+library(GSEABase)
+library(tidyverse)
+
+source(here("code", "mal_utilities.R"))
+```
+
+```{r load-data}
+library(mal067data)
+data(mal067_eset)
+meta_dt <- as_tibble(pData(mal067_eset))
+```
+
+
+```{r gsea}
+min_gene_set <- 5
+
+## set up GSEA analysis
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+```
+
+
+```{r getmorevars}
+
+## l_df_flow and l_df_rna
+##
+## 1. cytokines: stimulation (HBS, CSP),antigens (28), and log10 stim/DMSO ratios
+## 2. IAVI: IgG (CSP - NANP), IgG (CSP - C-term)
+## 3. CEVAC: IgG CSP-NANP titers, IgG HBsAg titers (both in log10 of the titers)
+## 4. antibody Luminex: isotope (IgG, IgM), analyte (42 antigens), log10 of the
+##                      median fluorecence intensity
+load("data/m067_seattle_data.RData")
+
+```
+
+# Antibodies and RNASeq analysis  
+  
+Ddatabase of antibody Luminex contains 3 new variables: isotype (IgG and IgM), analyte (42 antigens) and log10_mfi_no_dil, as log10 of the median fluorecence intensity (mfi) not diluted. 
+  
+These variables will be compared to DMSO samples.  
+  
+```{r cytokines} 
+
+## format rnaseq meta data
+meta_dt %>%
+  filter(vaccine=="rtss") %>%
+  filter(stimulation=="dmso") %>%
+  mutate(stimulation=as.character(stimulation)) %>%
+  mutate(visit=as.character(visit)) %>%
+  dplyr::select(pid, visit, stimulation, col_id, case, malaria_status, match) ->
+  meta_cyto
+
+## format antibody data
+l_df_rna[[4]] %>%
+  filter(vaccine=="rtss") %>%
+  mutate(visit=toupper(visit))->
+  df_rna
+
+##x <- df_rna[df_rna$analyte=="alfagal",]
+##countSampleSizes(x, "visit", c("isotype")) %>%
+##  headerKable()
+
+## join cytokine data with rnaseq meta data
+dplyr::inner_join(df_rna, meta_cyto, by=c("pid", "visit")) %>%
+dplyr::rename(log10_mfi=log10_mfi_no_dil) ->
+  cyto
+
+## check that total sample size is correct
+total <- length(intersect(paste(meta_cyto$pid,meta_cyto$visit),
+                          paste(df_rna$pid, df_rna$visit))) *
+  length(unique(df_rna$analyte)) * 
+  length(unique(df_rna$isotype))
+if(total != nrow(cyto)) {stop("Sample size is not correct")}
+
+```
+
+## Sample size
+
+###antibody database  
+  
+```{r samplesize1}
+countSampleSizes(df_rna, "analyte", c("isotype", "visit", "vaccine")) %>%
+  headerKable()
+```
+ 
+
+# Disease prediction  
+
+A clogit test of case-control vs mfi with gender and match as a stratified variable was applied to the antibody mfi.  
+
+```{r cyto_logit}
+
+## gather just case/control samples which the match stratified variable
+cyto %>%
+  filter(case != "neither") %>%
+  mutate(case = fct_drop(case)) %>%                    ## remove "neither" level
+  ## clogit needs case as a binary value (0,1)
+  mutate(case_logit=as.numeric(plyr::mapvalues(as.character(case), 
+                                               from=c("control", "case"),
+                                               to=c(0,1)))) %>%
+  as.data.table() ->
+  cyto_logit
+```
+
+##Sample size  
+  
+No M0 samples were present after filtering for case/control so only the M3 time point will be analysed.
+  
+```{r sample3}
+countSampleSizes(cyto_logit, "analyte", c("visit", "isotype", "case")) %>%
+  headerKable()
+```
+
+```{r output}
+ pvals <- cyto_logit[,summary(clogit(case_logit~sex+log10_mfi+strata(match)))$coefficient["log10_mfi", 5], by=.(analyte, isotype)]
+ 
+  ## plot boxplots of log10 mfi to case/control
+ anals <- unique(cyto_logit$analyte)
+ gg_igg1 <- ggplot(cyto_logit[isotype=="IgG" & analyte %in% anals[1:21]],
+                  aes(x=case, y=log10_mfi)) + 
+   geom_boxplot() + xlab("case") + facet_wrap(~analyte) + ggtitle("IgG 1")
+ 
+ gg_igg2 <- ggplot(cyto_logit[isotype=="IgG" & analyte %in% anals[22:42]],
+                  aes(x=case, y=log10_mfi)) + 
+   geom_boxplot() + xlab("case") + facet_wrap(~analyte) + ggtitle("IgG 2")
+ 
+  gg_igm1 <- ggplot(cyto_logit[isotype=="IgM" & analyte %in% anals[1:21]],
+                  aes(x=case, y=log10_mfi)) + 
+   geom_boxplot() + xlab("case") + facet_wrap(~analyte) + ggtitle("IgM 1")
+ 
+ gg_igm2 <- ggplot(cyto_logit[isotype=="IgM" & analyte %in% anals[22:42]],
+                  aes(x=case, y=log10_mfi)) + 
+   geom_boxplot() + xlab("case") + facet_wrap(~analyte) + ggtitle("IgM 2")
+ 
+ ## output p-values and plots
+ pvals %>% 
+   mutate(V1=signif(V1, 4)) %>%
+   dplyr::rename("p-value"=V1) %>%
+   spread(key="isotype", value="p-value") %>%
+   mutate(IgG_fdr=signif(p.adjust(IgG, method="fdr"), 4)) %>%
+   mutate(IgM_fdr=signif(p.adjust(IgM, method="fdr"), 4)) %>%
+   mutate(IgG=cell_spec(IgG, color = ifelse(IgG <= 0.2, "red", "black"))) %>%
+   mutate(IgM=cell_spec(IgM, color = ifelse(IgM <= 0.2, "red", "black"))) %>%
+   mutate(IgG_fdr=cell_spec(IgG_fdr, color = ifelse(IgG_fdr <= 0.2, 
+                                                    "red", "black"))) %>%
+   mutate(IgM_fdr=cell_spec(IgM_fdr, color = ifelse(IgM_fdr <= 0.2, 
+                                                    "red", "black"))) %>%
+ headerKable(title="clogit p-values")
+```
+ 
+##Log10 ratio plots of case and control
+ 
+```{r plots} 
+ print(gg_igg1)
+ print(gg_igg2)
+ print(gg_igm1)
+ print(gg_igm2)
+```
+  
+##Correlations between antibody mfi and RNASeq gene expression for significant GSEA gene-sets  {.tabset .tabset-fade .tabset-pills}  
+  
+  
+```{r sig1}
+sigSetName <- "enriched in myeloid cells and monocytes (M81)"
+sigSet <- btm_ind[[sigSetName]]
+```
+  
+###`r sigSetName` | cytokine ratios vs RNASeq gene expression 
+
+Correlations greater than 0.2 or less than -0.2 are in red.   
+  
+```{r sig1_analysis}
+
+rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
+all_DT <- data.table(dplyr::inner_join(cyto,rna_DT, by=c("col_id"="Var2")))
+setnames(all_DT, "Var1", "gene")
+
+corAllClass <- all_DT[,.(pearson=signif(cor(value, log10_mfi), 3),
+              spearman=signif(cor(value, log10_mfi,
+                                  method="spearman"), 3)),
+              by=.(analyte, isotype)]
+
+corGeneClass <- all_DT[,.(pearson=signif(cor(value, log10_mfi), 3),
+              spearman=signif(cor(value, log10_mfi,
+                                  method="spearman"), 3)),
+              by=.(gene, analyte, isotype)]
+
+corAllClass %>%
+  setorder(isotype) %>%
+mutate(pearson=cell_spec(pearson, 
+                         color = ifelse(pearson >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+mutate(spearman=cell_spec(spearman, 
+                         color = ifelse(spearman >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+headerKable()
+```
+
+
+
+```{r sig2}
+sigSetName <- "NK cell surface signature (S1)"
+sigSet <- btm_ind[[sigSetName]]
+```
+  
+###`r sigSetName` | cytokine ratios vs RNASeq gene expression 
+
+Correlations greater than 0.2 or less than -0.2 are in red.   
+  
+```{r sig1_analysis2}
+
+rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
+all_DT <- data.table(dplyr::inner_join(cyto,rna_DT, by=c("col_id"="Var2")))
+setnames(all_DT, "Var1", "gene")
+
+corAllClass <- all_DT[,.(pearson=signif(cor(value, log10_mfi), 3),
+              spearman=signif(cor(value, log10_mfi,
+                                  method="spearman"), 3)),
+              by=.(analyte, isotype)]
+
+corGeneClass <- all_DT[,.(pearson=signif(cor(value, log10_mfi), 3),
+              spearman=signif(cor(value, log10_mfi,
+                                  method="spearman"), 3)),
+              by=.(gene, analyte, isotype)]
+
+corAllClass %>%
+  setorder(isotype) %>%
+mutate(pearson=cell_spec(pearson, 
+                         color = ifelse(pearson >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+mutate(spearman=cell_spec(spearman, 
+                         color = ifelse(spearman >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+headerKable()
+```
+
+
+
+```{r sig3}
+sigSetName <- "enriched in monocytes (I) (M4.15)"
+sigSet <- btm_ind[[sigSetName]]
+```
+  
+###`r sigSetName` | cytokine ratios vs RNASeq gene expression 
+
+Correlations greater than 0.2 or less than -0.2 are in red.   
+  
+```{r sig1_analysis3}
+
+rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
+all_DT <- data.table(dplyr::inner_join(cyto,rna_DT, by=c("col_id"="Var2")))
+setnames(all_DT, "Var1", "gene")
+
+corAllClass <- all_DT[,.(pearson=signif(cor(value, log10_mfi), 3),
+              spearman=signif(cor(value, log10_mfi,
+                                  method="spearman"), 3)),
+              by=.(analyte, isotype)]
+
+corGeneClass <- all_DT[,.(pearson=signif(cor(value, log10_mfi), 3),
+              spearman=signif(cor(value, log10_mfi,
+                                  method="spearman"), 3)),
+              by=.(gene, analyte, isotype)]
+
+corAllClass %>%
+  setorder(isotype) %>%
+mutate(pearson=cell_spec(pearson, 
+                         color = ifelse(pearson >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+mutate(spearman=cell_spec(spearman, 
+                         color = ifelse(spearman >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+headerKable()
+```
+
