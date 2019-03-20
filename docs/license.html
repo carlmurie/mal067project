@@ -9,11 +9,9 @@
 <meta name="generator" content="pandoc" />
 
 
-<meta name="author" content="Carl Murie and Raphael Gottardo" />
 
-<meta name="date" content="2019-03-20" />
 
-<title>MAL067: RTS,S malaria vaccine study</title>
+<title>License</title>
 
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -315,9 +313,7 @@ div.section {
 
 
 
-<h1 class="title toc-ignore">MAL067: RTS,S malaria vaccine study</h1>
-<h4 class="author"><em>Carl Murie and Raphael Gottardo</em></h4>
-<h4 class="date"><em>March 20, 2019</em></h4>
+<h1 class="title toc-ignore">License</h1>
 
 </div>
 
@@ -328,21 +324,6 @@ div.section {
 <li>
 <p><details> <summary> <strong style="color:blue;">✔</strong> <strong>R Markdown file:</strong> up-to-date </summary></p>
 <p>Great! Since the R Markdown file has been committed to the Git repository, you know the exact version of the code that produced these results.</p>
-</details>
-</li>
-<li>
-<p><details> <summary> <strong style="color:blue;">✔</strong> <strong>Environment:</strong> empty </summary></p>
-<p>Great job! The global environment was empty. Objects defined in the global environment can affect the analysis in your R Markdown file in unknown ways. For reproduciblity it’s best to always run the code in an empty environment.</p>
-</details>
-</li>
-<li>
-<p><details> <summary> <strong style="color:blue;">✔</strong> <strong>Seed:</strong> <code>set.seed(20181108)</code> </summary></p>
-<p>The command <code>set.seed(20181108)</code> was run prior to running the code in the R Markdown file. Setting a seed ensures that any results that rely on randomness, e.g. subsampling or permutations, are reproducible.</p>
-</details>
-</li>
-<li>
-<p><details> <summary> <strong style="color:blue;">✔</strong> <strong>Session information:</strong> recorded </summary></p>
-<p>Great job! Recording the operating system, R version, and package versions is critical for reproducibility.</p>
 </details>
 </li>
 <li>
@@ -403,40 +384,6 @@ Message
 <tbody>
 <tr>
 <td style="text-align:left;">
-html
-</td>
-<td style="text-align:left;">
-92fc862
-</td>
-<td style="text-align:left;">
-carlmurie
-</td>
-<td style="text-align:left;">
-2019-03-20
-</td>
-<td style="text-align:left;">
-Build site.
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-Rmd
-</td>
-<td style="text-align:left;">
-78199ec
-</td>
-<td style="text-align:left;">
-carlmurie
-</td>
-<td style="text-align:left;">
-2019-03-20
-</td>
-<td style="text-align:left;">
-wflow_publish(all = TRUE)
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
 Rmd
 </td>
 <td style="text-align:left;">
@@ -457,148 +404,9 @@ Start workflowr project.
 </ul>
 <p></details></p>
 <hr />
-<div id="overview" class="section level1">
-<h1><span class="header-section-number">1</span> Overview</h1>
-<p>This project aims to understand characteristics of the RTS,S vaccine and identify collerates of vaccine efficacy (or more generally speaking clinical disease outcome) based on immunological assay data generated from MAL067.</p>
-<p><strong>Primary analysis</strong></p>
-<ol style="list-style-type: decimal">
-<li>Main effects: by stimulation and timepoint
-<ul>
-<li>differences in vaccine (rts,s - comparator)</li>
-<li>differences in disease (case - control)</li>
-<li>look at disease results for all significant gene-sets from vaccine comparison</li>
-</ul></li>
-<li>Interaction effects: by timepoint
-<ul>
-<li>differences in vaccine (rts,s - comparator) vs stimulation (stim - dmso)</li>
-<li>differences in disease (case - control) vs stimulation (stim - dmso)</li>
-<li>look at disease results for all significant gene-sets from vaccine comparison</li>
-</ul></li>
-</ol>
-</div>
-<div id="experimental-design" class="section level1">
-<h1><span class="header-section-number">2</span> Experimental Design</h1>
-<div id="design" class="section level3">
-<h3><span class="header-section-number">2.0.1</span> <a href="experimental_design.html">Design</a></h3>
-</div>
-</div>
-<div id="primary-analysis" class="section level1">
-<h1><span class="header-section-number">3</span> Primary Analysis</h1>
-<div id="gsea" class="section level2">
-<h2><span class="header-section-number">3.1</span> GSEA</h2>
-<div id="main-effects-vaccine-and-disease-for-each-stimulation" class="section level3">
-<h3><span class="header-section-number">3.1.1</span> Main effects: vaccine and disease for each stimulation</h3>
-<div id="dmso-m0" class="section level4">
-<h4><span class="header-section-number">3.1.1.1</span> <a href="primary_main_M0_DMSO.html">DMSO: M0</a></h4>
-</div>
-<div id="dmso-m3" class="section level4">
-<h4><span class="header-section-number">3.1.1.2</span> <a href="primary_main_M3_DMSO.html">DMSO: M3</a></h4>
-</div>
-<div id="csp-m0" class="section level4">
-<h4><span class="header-section-number">3.1.1.3</span> <a href="primary_main_M0_CSP.html">CSP: M0</a></h4>
-</div>
-<div id="csp-m3" class="section level4">
-<h4><span class="header-section-number">3.1.1.4</span> <a href="primary_main_M3_CSP.html">CSP: M3</a></h4>
-</div>
-<div id="hbs-m0" class="section level4">
-<h4><span class="header-section-number">3.1.1.5</span> <a href="primary_main_M0_HBS.html">HBS: M0</a></h4>
-</div>
-<div id="hbs-m3" class="section level4">
-<h4><span class="header-section-number">3.1.1.6</span> <a href="primary_main_M3_HBS.html">HBS: M3</a></h4>
-</div>
-</div>
-<div id="interaction-effects-stimulation-stim---dmso-vs-diseasevaccine" class="section level3">
-<h3><span class="header-section-number">3.1.2</span> Interaction effects: stimulation (stim - dmso) vs disease/vaccine</h3>
-<div id="csp-m3-1" class="section level4">
-<h4><span class="header-section-number">3.1.2.1</span> <a href="primary_interaction_M3_CSP.html">CSP: M3</a></h4>
-</div>
-<div id="hbs-m3-1" class="section level4">
-<h4><span class="header-section-number">3.1.2.2</span> <a href="primary_interaction_M3_HBS.html">HBS: M3</a></h4>
-</div>
-</div>
-<div id="secondary" class="section level3">
-<h3><span class="header-section-number">3.1.3</span> Secondary</h3>
-<div id="gsea-timedisease-interaction-group" class="section level4">
-<h4><span class="header-section-number">3.1.3.1</span> <a href="secondary_DMSO_time_disease.html">GSEA: time*disease interaction group</a></h4>
-</div>
-<div id="gsea-vaccinedisease-interaction-for-time-point-m3" class="section level4">
-<h4><span class="header-section-number">3.1.3.2</span> <a href="secondary_vaccine_disease_interaction.html">GSEA: vaccine*disease interaction for time-point M3</a></h4>
-</div>
-</div>
-<div id="exploratory" class="section level3">
-<h3><span class="header-section-number">3.1.4</span> Exploratory</h3>
-<div id="faust-moncyte-analysis" class="section level4">
-<h4><span class="header-section-number">3.1.4.1</span> <a href="secondary_faust.html">Faust moncyte analysis</a></h4>
-</div>
-<div id="enriched-moncytes-ii" class="section level4">
-<h4><span class="header-section-number">3.1.4.2</span> <a href="exploratory_Enriched_Monocytes.html">enriched moncytes II</a></h4>
-</div>
-<div id="monocytelymphocyte-ratio-disease-prediction" class="section level4">
-<h4><span class="header-section-number">3.1.4.3</span> <a href="exploratory_ML_ratio.html">monocyte/lymphocyte ratio disease prediction</a></h4>
-</div>
-<div id="cytokine-stimdmso-ratios-disease-prediction" class="section level4">
-<h4><span class="header-section-number">3.1.4.4</span> <a href="exploratory_cytokine_rna.html">cytokine stim/DMSO ratios disease prediction</a></h4>
-</div>
-<div id="iavi-isotype-disease-prediction" class="section level4">
-<h4><span class="header-section-number">3.1.4.5</span> <a href="exploratory_iavi_rna.html">IAVI isotype disease prediction</a></h4>
-</div>
-<div id="cevac-disease-prediction" class="section level4">
-<h4><span class="header-section-number">3.1.4.6</span> <a href="exploratory_cevac_rna.html">CEVAC disease prediction</a></h4>
-</div>
-<div id="antibody-disease-prediction" class="section level4">
-<h4><span class="header-section-number">3.1.4.7</span> <a href="exploratory_antibody.html">antibody disease prediction</a></h4>
-</div>
-<div id="derosa-cell-subset-frequencies-disease-and-vaccine-effects" class="section level4">
-<h4><span class="header-section-number">3.1.4.8</span> <a href="exploratory_monocyte_derosa.html">DeRosa cell subset frequencies disease and vaccine effects</a></h4>
-</div>
-<div id="ics-cd4-csp-correlation-with-rnaseq-gene-expression" class="section level4">
-<h4><span class="header-section-number">3.1.4.9</span> <a href="exploratory_ICS_CD4_CSP.html">ICS CD4 CSP: correlation with RNASeq gene expression</a></h4>
-</div>
-<div id="ics-cd4-hbs-correlation-with-rnaseq-gene-expression" class="section level4">
-<h4><span class="header-section-number">3.1.4.10</span> <a href="exploratory_ICS_CD4_HBS.html">ICS CD4 HBS: correlation with RNASeq gene expression</a></h4>
-</div>
-<div id="ics-cd8-csp-correlation-with-rnaseq-gene-expression" class="section level4">
-<h4><span class="header-section-number">3.1.4.11</span> <a href="exploratory_ICS_CD8_CSP.html">ICS CD8 CSP: correlation with RNASeq gene expression</a></h4>
-</div>
-<div id="ics-cd8-hbs-correlation-with-rnaseq-gene-expression" class="section level4">
-<h4><span class="header-section-number">3.1.4.12</span> <a href="exploratory_ICS_CD8_HBS.html">ICS CD8 HBS: correlation with RNASeq gene expression</a></h4>
-</div>
-<div id="ics-cd4-magnitude-difference-truncated-correlation-with-rnaseq-gene-expression" class="section level4">
-<h4><span class="header-section-number">3.1.4.13</span> <a href="exploratory_ICS_Mag.html">ICS CD4 magnitude difference (truncated): correlation with RNASeq gene expression</a></h4>
-</div>
-</div>
-</div>
-<div id="session-information" class="section level2">
-<h2><span class="header-section-number">3.2</span> Session information</h2>
-<pre class="r"><code>sessionInfo()</code></pre>
-<pre><code>R version 3.5.0 (2018-04-23)
-Platform: x86_64-pc-linux-gnu (64-bit)
-Running under: Ubuntu 14.04.5 LTS
-
-Matrix products: default
-BLAS/LAPACK: /app/easybuild/software/OpenBLAS/0.2.18-GCC-5.4.0-2.26-LAPACK-3.6.1/lib/libopenblas_prescottp-r0.2.18.so
-
-locale:
- [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
- [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    
- [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   
- [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 
- [9] LC_ADDRESS=C               LC_TELEPHONE=C            
-[11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       
-
-attached base packages:
-[1] stats     graphics  grDevices utils     datasets  methods   base     
-
-loaded via a namespace (and not attached):
- [1] workflowr_1.1.1   Rcpp_1.0.0        digest_0.6.18    
- [4] rprojroot_1.3-2   R.methodsS3_1.7.1 backports_1.1.2  
- [7] magrittr_1.5      git2r_0.24.0      evaluate_0.13    
-[10] stringi_1.3.1     whisker_0.3-2     R.oo_1.22.0      
-[13] R.utils_2.7.0     rmarkdown_1.11    tools_3.5.0      
-[16] stringr_1.4.0     xfun_0.5          yaml_2.2.0       
-[19] compiler_3.5.0    htmltools_0.3.6   knitr_1.21       </code></pre>
-</div>
-</div>
+<p>What license are you using for your code? See <a href="http://choosealicense.com/">choosealicense.com</a> for help deciding. It’s a convention to save a file <code>LICENSE</code> in the root of your Git repo that contains the license text.</p>
+<p>What license are you using for the written content on your site? It is traditional to choose a <a href="https://creativecommons.org/choose/">Creative Commons</a> license for this type of content.</p>
+<p>How should others cite your work? It’s a convention to save a file <code>CITATION</code> in the root of your Git repo that contains the citation information.</p>
 
 <!-- Adjust MathJax settings so that all math formulae are shown using
 TeX fonts only; see

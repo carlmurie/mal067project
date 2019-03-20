@@ -1,0 +1,6972 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+
+<meta name="author" content="Carl Murie and Raphael Gottardo" />
+
+<meta name="date" content="2019-03-20" />
+
+<title>Integrate antibody and RNASeq data</title>
+
+<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/lumen.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="site_libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<script src="site_libs/kePrint-0.0.1/kePrint.js"></script>
+<link href="site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet" />
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+</head>
+
+<body>
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+  height: auto;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+<style type="text/css">
+/* padding for bootstrap navbar */
+body {
+  padding-top: 51px;
+  padding-bottom: 40px;
+}
+/* offset scroll position for anchor links (for fixed navbar)  */
+.section h1 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h2 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h3 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h4 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h5 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h6 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #ffffff;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script>
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.parent().addClass('active');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+});
+</script>
+
+<div class="container-fluid main-container">
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+  padding-left: 25px;
+  text-indent: 0;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">mal067project</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+<li>
+  <a href="about.html">About</a>
+</li>
+<li>
+  <a href="license.html">License</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://github.com/jdblischak/workflowr">
+    <span class="fa fa-github"></span>
+     
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<!-- Add a small amount of space between sections. -->
+<style type="text/css">
+div.section {
+  padding-top: 12px;
+}
+</style>
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">Integrate antibody and RNASeq data</h1>
+<h4 class="author"><em>Carl Murie and Raphael Gottardo</em></h4>
+<h4 class="date"><em>March 20, 2019</em></h4>
+
+</div>
+
+
+<p><strong>Last updated:</strong> 2019-03-20</p>
+<strong>workflowr checks:</strong> <small>(Click a bullet for more information)</small>
+<ul>
+<li>
+<p><details> <summary> <strong style="color:blue;">✔</strong> <strong>R Markdown file:</strong> up-to-date </summary></p>
+<p>Great! Since the R Markdown file has been committed to the Git repository, you know the exact version of the code that produced these results.</p>
+</details>
+</li>
+<li>
+<p><details> <summary> <strong style="color:blue;">✔</strong> <strong>Environment:</strong> empty </summary></p>
+<p>Great job! The global environment was empty. Objects defined in the global environment can affect the analysis in your R Markdown file in unknown ways. For reproduciblity it’s best to always run the code in an empty environment.</p>
+</details>
+</li>
+<li>
+<p><details> <summary> <strong style="color:blue;">✔</strong> <strong>Seed:</strong> <code>set.seed(20181108)</code> </summary></p>
+<p>The command <code>set.seed(20181108)</code> was run prior to running the code in the R Markdown file. Setting a seed ensures that any results that rely on randomness, e.g. subsampling or permutations, are reproducible.</p>
+</details>
+</li>
+<li>
+<p><details> <summary> <strong style="color:blue;">✔</strong> <strong>Session information:</strong> recorded </summary></p>
+<p>Great job! Recording the operating system, R version, and package versions is critical for reproducibility.</p>
+</details>
+</li>
+<li>
+<p><details> <summary> <strong style="color:blue;">✔</strong> <strong>Repository version:</strong> 55d014c </summary></p>
+Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility. The version displayed above was the version of the Git repository at the time these results were generated. <br><br> Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
+<pre><code>
+Ignored files:
+    Ignored:    .Rhistory
+
+Untracked files:
+    Untracked:  analysis/children/
+    Untracked:  code/mal_utilities.R
+    Untracked:  cor_table.RDS
+    Untracked:  data/170830-RTSS case control phenotyping.txt
+    Untracked:  data/BTM_for_GSEA_20131008.gmt
+    Untracked:  data/CD4_CSP_PFS.rds
+    Untracked:  data/CD4_HBS_PFS.rds
+    Untracked:  data/CD8_CSP_PFS.rds
+    Untracked:  data/CD8_HBS_PFS.rds
+    Untracked:  data/PRIMARY_CD4_MAGNITUDE.rds
+    Untracked:  data/faustOutputAllRtss_v02.csv
+    Untracked:  data/ics_extra_vars_20180515.csv
+    Untracked:  data/m067_seattle_data.RData
+    Untracked:  data/phenoLineagePctLive.txt
+    Untracked:  docs/figure/
+    Untracked:  output/dmso_M0_both_disease.csv
+    Untracked:  output/dmso_M0_old_disease.csv
+    Untracked:  output/dmso_M3_both_disease.csv
+    Untracked:  output/dmso_M3_old_disease.csv
+    Untracked:  output/dmso_M3_young_disease.csv
+
+</code></pre>
+Note that any generated files, e.g. HTML, png, CSS, etc., are not included in this status report because it is ok for generated content to have uncommitted changes. </details>
+</li>
+</ul>
+<details> <summary> <small><strong>Expand here to see past versions:</strong></small> </summary>
+<ul>
+<table style="border-collapse:separate; border-spacing:5px;">
+<thead>
+<tr>
+<th style="text-align:left;">
+File
+</th>
+<th style="text-align:left;">
+Version
+</th>
+<th style="text-align:left;">
+Author
+</th>
+<th style="text-align:left;">
+Date
+</th>
+<th style="text-align:left;">
+Message
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Rmd
+</td>
+<td style="text-align:left;">
+55d014c
+</td>
+<td style="text-align:left;">
+carlmurie
+</td>
+<td style="text-align:left;">
+2019-03-20
+</td>
+<td style="text-align:left;">
+wflow_publish(files = “analysis/*.Rmd“)
+</td>
+</tr>
+</tbody>
+</table>
+</ul>
+<p></details></p>
+<hr />
+<div id="antibodies-and-rnaseq-analysis" class="section level1">
+<h1><span class="header-section-number">1</span> Antibodies and RNASeq analysis</h1>
+<p>Ddatabase of antibody Luminex contains 3 new variables: isotype (IgG and IgM), analyte (42 antigens) and log10_mfi_no_dil, as log10 of the median fluorecence intensity (mfi) not diluted.</p>
+<p>These variables will be compared to DMSO samples.</p>
+<div id="sample-size" class="section level2">
+<h2><span class="header-section-number">1.1</span> Sample size</h2>
+<div id="antibody-database" class="section level3">
+<h3><span class="header-section-number">1.1.1</span> antibody database</h3>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:left;">
+</th>
+<th style="text-align:center;">
+total
+</th>
+<th style="text-align:center;">
+IgG
+</th>
+<th style="text-align:center;">
+IgM
+</th>
+<th style="text-align:center;">
+M0
+</th>
+<th style="text-align:center;">
+M3
+</th>
+<th style="text-align:center;">
+rtss
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+alfagal
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+AMA13D7
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+ama1fvo
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+bsa
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+celtos
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cspflwrair
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+csptrunccterm
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+csptruncnanp_rep
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cyrpafl
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+dbl1dbl23d7
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+dbl3dbl4fcr3
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+dblalfa
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+eba140r35
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+eba175r2pff2
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+eba175r35
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+exp1
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+gst
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+hbsag
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+lsa1
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp1423d7
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp142fvo
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp1bl23d7
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp1bl2hybrid
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp1bl2mad20
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp1bl2pa17
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp1bl2r033
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp1bl2welcome
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp2flch150
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp2fldd2
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp33c
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp33d7
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+MSP5
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp6
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+p41
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+pfrh1
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+pfrh2b240
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+pfrh5anl
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+ptramp
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+rh2(2030)
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+rh4.2
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+rh4.9
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+ssp2(ptrap)
+</td>
+<td style="text-align:center;">
+188
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+94
+</td>
+<td style="text-align:center;">
+188
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div id="disease-prediction" class="section level1">
+<h1><span class="header-section-number">2</span> Disease prediction</h1>
+<p>A clogit test of case-control vs mfi with gender and match as a stratified variable was applied to the antibody mfi.</p>
+<div id="sample-size-1" class="section level2">
+<h2><span class="header-section-number">2.1</span> Sample size</h2>
+<p>No M0 samples were present after filtering for case/control so only the M3 time point will be analysed.</p>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:left;">
+</th>
+<th style="text-align:center;">
+total
+</th>
+<th style="text-align:center;">
+M3
+</th>
+<th style="text-align:center;">
+IgG
+</th>
+<th style="text-align:center;">
+IgM
+</th>
+<th style="text-align:center;">
+control
+</th>
+<th style="text-align:center;">
+case
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+alfagal
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+AMA13D7
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+ama1fvo
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+bsa
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+celtos
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cspflwrair
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+csptrunccterm
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+csptruncnanp_rep
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cyrpafl
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+dbl1dbl23d7
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+dbl3dbl4fcr3
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+dblalfa
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+eba140r35
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+eba175r2pff2
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+eba175r35
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+exp1
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+gst
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+hbsag
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+lsa1
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp1423d7
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp142fvo
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp1bl23d7
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp1bl2hybrid
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp1bl2mad20
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp1bl2pa17
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp1bl2r033
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp1bl2welcome
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp2flch150
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp2fldd2
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp33c
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp33d7
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+MSP5
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+msp6
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+p41
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+pfrh1
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+pfrh2b240
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+pfrh5anl
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+ptramp
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+rh2(2030)
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+rh4.2
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+rh4.9
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+ssp2(ptrap)
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+68
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+34
+</td>
+<td style="text-align:center;">
+48
+</td>
+<td style="text-align:center;">
+20
+</td>
+</tr>
+</tbody>
+</table>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<caption>
+clogit p-values
+</caption>
+<thead>
+<tr>
+<th style="text-align:center;">
+analyte
+</th>
+<th style="text-align:center;">
+IgG
+</th>
+<th style="text-align:center;">
+IgM
+</th>
+<th style="text-align:center;">
+IgG_fdr
+</th>
+<th style="text-align:center;">
+IgM_fdr
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">
+alfagal
+</td>
+<td style="text-align:center;">
+<span style="     color: red;">0.1145</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.2622</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+AMA13D7
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8527</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: red;">0.1568</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ama1fvo
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.6772</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8174</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8429</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+bsa
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.4068</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.2239</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+celtos
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.2953</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7334</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8325</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+cspflwrair
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8228</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8429</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+csptrunccterm
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7987</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.3458</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+csptruncnanp_rep
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8494</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: red;">0.1801</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+cyrpafl
+</td>
+<td style="text-align:center;">
+<span style="     color: red;">0.04932</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: red;">0.06084</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dbl1dbl23d7
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.2148</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.4504</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dbl3dbl4fcr3
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.5612</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.4879</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dblalfa
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.2136</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: red;">0.1027</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba140r35
+</td>
+<td style="text-align:center;">
+<span style="     color: red;">0.1833</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.4868</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba175r2pff2
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9762</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.5362</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7507</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba175r35
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.6788</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.5167</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+exp1
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9637</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.2145</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+gst
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9606</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.3861</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+hbsag
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.6485</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.2962</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+lsa1
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.4964</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.3464</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1423d7
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7684</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9863</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9863</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp142fvo
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.995</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.6517</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8325</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl23d7
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.6275</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7084</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8325</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2hybrid
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.5545</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.4957</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2mad20
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.4626</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.4219</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2pa17
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.78</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.3635</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2r033
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.2103</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.5972</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8091</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2welcome
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: red;">0.1822</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp2flch150
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.6695</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7751</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8347</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp2fldd2
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.3887</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7198</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8325</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp33c
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.6138</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: red;">0.09542</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp33d7
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.6378</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.4207</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+MSP5
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7886</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.3316</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp6
+</td>
+<td style="text-align:center;">
+<span style="     color: red;">0.1029</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.2943</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+p41
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8021</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.3119</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh1
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.4345</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.5035</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh2b240
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9177</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.3895</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh5anl
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9283</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.208</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ptramp
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.4717</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.6882</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8325</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh2(2030)
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.2109</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: red;">0.06695</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh4.2
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.2595</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: red;">0.1132</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh4.9
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.6856</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7054</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8325</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ssp2(ptrap)
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9184</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.7711</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.9991</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.8347</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="log10-ratio-plots-of-case-and-control" class="section level2">
+<h2><span class="header-section-number">2.2</span> Log10 ratio plots of case and control</h2>
+<p><img src="figure/exploratory_antibody.Rmd/plots-1.png" width="672" style="display: block; margin: auto;" /><img src="figure/exploratory_antibody.Rmd/plots-2.png" width="672" style="display: block; margin: auto;" /><img src="figure/exploratory_antibody.Rmd/plots-3.png" width="672" style="display: block; margin: auto;" /><img src="figure/exploratory_antibody.Rmd/plots-4.png" width="672" style="display: block; margin: auto;" /></p>
+</div>
+<div id="correlations-between-antibody-mfi-and-rnaseq-gene-expression-for-significant-gsea-gene-sets" class="section level2 tabset tabset-fade tabset-pills">
+<h2><span class="header-section-number">2.3</span> Correlations between antibody mfi and RNASeq gene expression for significant GSEA gene-sets</h2>
+<div id="enriched-in-myeloid-cells-and-monocytes-m81-cytokine-ratios-vs-rnaseq-gene-expression" class="section level3">
+<h3><span class="header-section-number">2.3.1</span> enriched in myeloid cells and monocytes (M81) | cytokine ratios vs RNASeq gene expression</h3>
+<p>Correlations greater than 0.2 or less than -0.2 are in red.</p>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:center;">
+analyte
+</th>
+<th style="text-align:center;">
+isotype
+</th>
+<th style="text-align:center;">
+pearson
+</th>
+<th style="text-align:center;">
+spearman
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">
+gst
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0463</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00143</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+bsa
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0365</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0606</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ssp2(ptrap)
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0177</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.000683</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh1
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0094</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00972</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2welcome
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0196</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0103</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+csptrunccterm
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0628</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0112</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ptramp
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00956</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0376</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh4.9
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0053</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0692</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+celtos
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0328</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0345</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh2b240
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0234</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.022</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp142fvo
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.033</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0216</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp33c
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00411</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0348</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+hbsag
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0401</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00558</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+p41
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0535</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0495</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dbl1dbl23d7
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0376</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.067</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+cyrpafl
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0377</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0259</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+lsa1
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0036</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0484</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+exp1
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0249</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0479</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2hybrid
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0422</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0908</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp2flch150
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0258</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0522</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp33d7
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0118</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0535</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+csptruncnanp_rep
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.049</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0206</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2r033
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0401</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0363</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba175r35
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.036</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0824</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dbl3dbl4fcr3
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0603</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0442</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp6
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00303</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0443</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+AMA13D7
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0298</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0679</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp2fldd2
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0668</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0686</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dblalfa
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0166</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0556</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba175r2pff2
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0011</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0487</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+MSP5
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0158</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.015</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl23d7
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0735</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0296</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh2(2030)
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0335</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0727</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ama1fvo
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0346</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0851</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+alfagal
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0652</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.072</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba140r35
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0496</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0638</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1423d7
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0152</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0386</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh5anl
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0094</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0479</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2pa17
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">8.79e-06</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.05</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+cspflwrair
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0568</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0193</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2mad20
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0746</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0605</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh4.2
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0442</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0173</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh4.2
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0647</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.118</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+bsa
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0112</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-7.23e-06</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dbl3dbl4fcr3
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0125</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0631</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+cyrpafl
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0274</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0349</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh2(2030)
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0379</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0103</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2hybrid
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0073</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0168</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba175r35
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00562</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0564</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+csptrunccterm
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0375</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00471</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp33d7
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0237</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.025</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2pa17
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00932</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00671</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+exp1
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0249</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0578</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+MSP5
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0115</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00788</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+celtos
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0103</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0497</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2mad20
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0022</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0298</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh1
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0354</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0537</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp2fldd2
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0264</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0509</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+gst
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0684</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0402</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp33c
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0331</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0457</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dblalfa
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0431</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0424</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+hbsag
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00153</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0108</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2welcome
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0163</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0133</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh5anl
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0279</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0278</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl23d7
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0344</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0289</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+alfagal
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0113</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0302</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp6
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0251</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0534</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ptramp
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00176</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.015</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp142fvo
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0527</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0958</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba175r2pff2
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0226</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0206</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+cspflwrair
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0532</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.015</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+AMA13D7
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0206</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.008</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2r033
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0235</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0408</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh2b240
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0459</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0518</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+csptruncnanp_rep
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0553</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0138</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+p41
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0287</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0673</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp2flch150
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.000938</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.000912</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ama1fvo
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0363</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0483</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1423d7
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0384</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.065</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ssp2(ptrap)
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.023</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0637</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh4.9
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0585</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0839</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba140r35
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0278</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00529</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+lsa1
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0566</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0068</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dbl1dbl23d7
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0203</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0135</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="nk-cell-surface-signature-s1-cytokine-ratios-vs-rnaseq-gene-expression" class="section level3">
+<h3><span class="header-section-number">2.3.2</span> NK cell surface signature (S1) | cytokine ratios vs RNASeq gene expression</h3>
+<p>Correlations greater than 0.2 or less than -0.2 are in red.</p>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:center;">
+analyte
+</th>
+<th style="text-align:center;">
+isotype
+</th>
+<th style="text-align:center;">
+pearson
+</th>
+<th style="text-align:center;">
+spearman
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">
+gst
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.015</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0383</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+bsa
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0919</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0823</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ssp2(ptrap)
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0452</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0427</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh1
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00249</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0176</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2welcome
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00304</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0437</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+csptrunccterm
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0272</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0273</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ptramp
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0543</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.042</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh4.9
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00434</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.000553</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+celtos
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00197</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0166</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh2b240
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0368</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00703</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp142fvo
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0447</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0481</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp33c
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00564</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0331</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+hbsag
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00271</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0234</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+p41
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0795</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.056</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dbl1dbl23d7
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0487</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0458</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+cyrpafl
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0306</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0449</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+lsa1
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0117</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0354</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+exp1
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0218</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.019</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2hybrid
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.057</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0672</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp2flch150
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0101</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.018</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp33d7
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0219</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0261</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+csptruncnanp_rep
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0265</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.000422</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2r033
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0556</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0174</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba175r35
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0363</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0433</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dbl3dbl4fcr3
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.116</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0609</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp6
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0298</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0284</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+AMA13D7
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0844</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.082</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp2fldd2
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.118</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0715</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dblalfa
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.01</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0654</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba175r2pff2
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0696</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0651</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+MSP5
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00643</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0187</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl23d7
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00898</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0113</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh2(2030)
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0691</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0561</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ama1fvo
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.103</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0961</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+alfagal
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.04</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0672</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba140r35
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0174</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00407</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1423d7
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0602</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0443</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh5anl
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0152</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0173</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2pa17
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0268</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0732</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+cspflwrair
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0313</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0223</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2mad20
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0543</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0539</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh4.2
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0202</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0081</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh4.2
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0822</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0929</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+bsa
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0586</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0535</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dbl3dbl4fcr3
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0442</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0581</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+cyrpafl
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0104</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0214</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh2(2030)
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00908</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0233</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2hybrid
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.015</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0189</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba175r35
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0568</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0611</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+csptrunccterm
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0222</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.000647</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp33d7
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0269</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.043</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2pa17
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.024</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0425</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+exp1
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0126</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0572</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+MSP5
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0463</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0146</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+celtos
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0167</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00261</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2mad20
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0447</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.01</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh1
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0182</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0617</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp2fldd2
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0552</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.067</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+gst
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0103</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0031</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp33c
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0547</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0524</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dblalfa
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0488</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0339</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+hbsag
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.028</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0263</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2welcome
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0442</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0142</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh5anl
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0302</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0136</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl23d7
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00765</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0524</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+alfagal
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0599</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0341</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp6
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0913</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.104</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ptramp
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0035</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0223</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp142fvo
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0709</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0895</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba175r2pff2
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0208</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.034</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+cspflwrair
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00819</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0106</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+AMA13D7
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0205</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.016</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2r033
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0409</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0412</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh2b240
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0735</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0949</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+csptruncnanp_rep
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0079</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0114</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+p41
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0166</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0637</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp2flch150
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0396</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0287</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ama1fvo
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0205</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0207</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1423d7
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0239</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0466</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ssp2(ptrap)
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0863</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0887</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh4.9
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.005</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0168</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba140r35
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.053</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0397</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+lsa1
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0268</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00564</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dbl1dbl23d7
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00599</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.000799</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="enriched-in-monocytes-i-m4.15-cytokine-ratios-vs-rnaseq-gene-expression" class="section level3">
+<h3><span class="header-section-number">2.3.3</span> enriched in monocytes (I) (M4.15) | cytokine ratios vs RNASeq gene expression</h3>
+<p>Correlations greater than 0.2 or less than -0.2 are in red.</p>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:center;">
+analyte
+</th>
+<th style="text-align:center;">
+isotype
+</th>
+<th style="text-align:center;">
+pearson
+</th>
+<th style="text-align:center;">
+spearman
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">
+gst
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0742</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0555</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+bsa
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0648</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0675</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ssp2(ptrap)
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0319</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0335</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh1
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00688</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0359</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2welcome
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0251</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0426</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+csptrunccterm
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.099</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0713</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ptramp
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.024</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0126</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh4.9
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0064</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0377</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+celtos
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0462</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.053</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh2b240
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0507</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0619</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp142fvo
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0693</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0293</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp33c
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0246</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0394</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+hbsag
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0593</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0894</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+p41
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0878</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0253</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dbl1dbl23d7
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.043</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0295</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+cyrpafl
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0502</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0703</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+lsa1
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0107</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.102</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+exp1
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0318</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0302</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2hybrid
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0544</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.11</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp2flch150
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0525</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.079</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp33d7
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0152</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0439</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+csptruncnanp_rep
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0812</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.062</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2r033
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0477</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0409</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba175r35
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0623</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0789</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dbl3dbl4fcr3
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0784</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0126</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp6
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0295</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0417</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+AMA13D7
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0528</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00531</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp2fldd2
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.114</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0475</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dblalfa
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0095</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0447</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba175r2pff2
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00655</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0753</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+MSP5
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0158</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0198</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl23d7
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.119</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.066</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh2(2030)
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0461</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0456</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ama1fvo
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0664</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0213</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+alfagal
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0971</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.142</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba140r35
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0588</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0702</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1423d7
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0332</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0357</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh5anl
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0219</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0314</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2pa17
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00867</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0427</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+cspflwrair
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0914</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0639</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2mad20
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.115</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0839</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh4.2
+</td>
+<td style="text-align:center;">
+IgG
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.063</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0425</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh4.2
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0995</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.133</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+bsa
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0289</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0562</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dbl3dbl4fcr3
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00815</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0481</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+cyrpafl
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.046</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0401</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh2(2030)
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0584</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0252</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2hybrid
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00512</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.000514</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba175r35
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0403</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.03</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+csptrunccterm
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0815</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0317</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp33d7
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0149</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0466</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2pa17
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0341</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0191</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+exp1
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.057</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0555</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+MSP5
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0353</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0583</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+celtos
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0155</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00276</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2mad20
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.00135</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0954</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh1
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0524</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0272</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp2fldd2
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0231</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0408</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+gst
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.123</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.126</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp33c
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0414</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0335</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dblalfa
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0802</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.079</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+hbsag
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0183</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0104</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2welcome
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0252</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0703</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh5anl
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0396</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0882</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl23d7
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0565</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0586</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+alfagal
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0173</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00911</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp6
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0182</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0181</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ptramp
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.000595</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0206</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp142fvo
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0819</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.126</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba175r2pff2
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0369</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0199</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+cspflwrair
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.104</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0765</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+AMA13D7
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0418</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0476</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1bl2r033
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.031</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0494</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+pfrh2b240
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0709</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0571</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+csptruncnanp_rep
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0849</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0742</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+p41
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0529</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0804</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp2flch150
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00264</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0276</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ama1fvo
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0306</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0535</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+msp1423d7
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.044</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0801</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+ssp2(ptrap)
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.0264</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.00736</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+rh4.9
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.108</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">-0.123</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+eba140r35
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0692</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0154</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+lsa1
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.112</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0877</span>
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+dbl1dbl23d7
+</td>
+<td style="text-align:center;">
+IgM
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0332</span>
+</td>
+<td style="text-align:center;">
+<span style="     color: black;">0.0015</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="session-information" class="section level2">
+<h2><span class="header-section-number">2.4</span> Session information</h2>
+<p>R version 3.5.0 (2018-04-23) Platform: x86_64-pc-linux-gnu (64-bit) Running under: Ubuntu 14.04.5 LTS</p>
+<p>Matrix products: default BLAS/LAPACK: /app/easybuild/software/OpenBLAS/0.2.18-GCC-5.4.0-2.26-LAPACK-3.6.1/lib/libopenblas_prescottp-r0.2.18.so</p>
+<p>locale: [1] LC_CTYPE=en_US.UTF-8 LC_NUMERIC=C<br />
+[3] LC_TIME=en_US.UTF-8 LC_COLLATE=en_US.UTF-8<br />
+[5] LC_MONETARY=en_US.UTF-8 LC_MESSAGES=en_US.UTF-8<br />
+[7] LC_PAPER=en_US.UTF-8 LC_NAME=C<br />
+[9] LC_ADDRESS=C LC_TELEPHONE=C<br />
+[11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C</p>
+<p>attached base packages: [1] stats4 parallel stats graphics grDevices utils datasets [8] methods base</p>
+<p>other attached packages: [1] mal067data_1.0 kableExtra_1.0.1 forcats_0.3.0<br />
+[4] stringr_1.4.0 dplyr_0.7.99.9000 purrr_0.2.5<br />
+[7] readr_1.3.1 tidyr_0.8.0 tibble_2.0.1<br />
+[10] ggplot2_3.1.0 tidyverse_1.2.1 GSEABase_1.42.0<br />
+[13] graph_1.58.0 annotate_1.58.0 XML_3.98-1.11<br />
+[16] AnnotationDbi_1.42.1 IRanges_2.14.6 S4Vectors_0.18.1<br />
+[19] survival_2.42-3 data.table_1.12.0 here_0.1<br />
+[22] magrittr_1.5 limma_3.36.1 Biobase_2.42.0<br />
+[25] BiocGenerics_0.28.0 RNASeqUtilities_1.1 knitr_1.21</p>
+<p>loaded via a namespace (and not attached): [1] nlme_3.1-137 bitops_1.0-6 lubridate_1.7.4<br />
+[4] bit64_0.9-7 webshot_0.5.1 httr_1.4.0<br />
+[7] rprojroot_1.3-2 tools_3.5.0 backports_1.1.2<br />
+[10] R6_2.4.0 DT_0.5 DBI_1.0.0<br />
+[13] lazyeval_0.2.1 colorspace_1.4-0 withr_2.1.2<br />
+[16] tidyselect_0.2.5 gridExtra_2.3 bit_1.1-14<br />
+[19] compiler_3.5.0 git2r_0.24.0 cli_1.0.1<br />
+[22] rvest_0.3.2 xml2_1.2.0 labeling_0.3<br />
+[25] scales_1.0.0 digest_0.6.18 rmarkdown_1.11<br />
+[28] R.utils_2.7.0 pkgconfig_2.0.2 htmltools_0.3.6<br />
+[31] htmlwidgets_1.3 rlang_0.3.1 readxl_1.1.0<br />
+[34] rstudioapi_0.9.0 RSQLite_2.1.1 generics_0.0.2<br />
+[37] jsonlite_1.6 R.oo_1.22.0 RCurl_1.95-4.10<br />
+[40] Matrix_1.2-14 Rcpp_1.0.0 munsell_0.5.0<br />
+[43] R.methodsS3_1.7.1 stringi_1.3.1 whisker_0.3-2<br />
+[46] yaml_2.2.0 plyr_1.8.4 grid_3.5.0<br />
+[49] blob_1.1.1 crayon_1.3.4 lattice_0.20-35<br />
+[52] haven_2.0.0 splines_3.5.0 hms_0.4.2<br />
+[55] pillar_1.3.1 reshape2_1.4.3 glue_1.3.0<br />
+[58] evaluate_0.13 modelr_0.1.1 cellranger_1.1.0 [61] gtable_0.2.0 assertthat_0.2.0 xfun_0.5<br />
+[64] xtable_1.8-3 broom_0.5.1 viridisLite_0.3.0 [67] memoise_1.1.0 workflowr_1.1.1</p>
+</div>
+</div>
+
+<!-- Adjust MathJax settings so that all math formulae are shown using
+TeX fonts only; see
+http://docs.mathjax.org/en/latest/configuration.html.  This will make
+the presentation more consistent at the cost of the webpage sometimes
+taking slightly longer to load. Note that this only works because the
+footer is added to webpages before the MathJax javascript. -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
+</script>
+
+<hr>
+<p>
+  This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a>
+  analysis was created with
+  <a href="https://github.com/jdblischak/workflowr">workflowr</a> 1.1.1
+</p>
+<hr>
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

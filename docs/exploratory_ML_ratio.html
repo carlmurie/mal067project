@@ -11,9 +11,9 @@
 
 <meta name="author" content="Carl Murie and Raphael Gottardo" />
 
-<meta name="date" content="2019-03-20" />
+<meta name="date" content="2019-01-10" />
 
-<title>MAL067: RTS,S malaria vaccine study</title>
+<title>Monocyte Lymphocyte Ratio</title>
 
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -21,9 +21,13 @@
 <script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
 <script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
 <script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="site_libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
 <script src="site_libs/navigation-1.1/tabsets.js"></script>
 <link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
 <script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<script src="site_libs/kePrint-0.0.1/kePrint.js"></script>
 <link href="site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet" />
 <link href="site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet" />
 
@@ -268,6 +272,101 @@ $(document).ready(function () {
 
 
 
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+  padding-left: 25px;
+  text-indent: 0;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
 
 
 <div class="navbar navbar-default  navbar-fixed-top" role="navigation">
@@ -315,9 +414,9 @@ div.section {
 
 
 
-<h1 class="title toc-ignore">MAL067: RTS,S malaria vaccine study</h1>
+<h1 class="title toc-ignore">Monocyte Lymphocyte Ratio</h1>
 <h4 class="author"><em>Carl Murie and Raphael Gottardo</em></h4>
-<h4 class="date"><em>March 20, 2019</em></h4>
+<h4 class="date"><em>January 10, 2019</em></h4>
 
 </div>
 
@@ -403,10 +502,10 @@ Message
 <tbody>
 <tr>
 <td style="text-align:left;">
-html
+Rmd
 </td>
 <td style="text-align:left;">
-92fc862
+55d014c
 </td>
 <td style="text-align:left;">
 carlmurie
@@ -415,41 +514,7 @@ carlmurie
 2019-03-20
 </td>
 <td style="text-align:left;">
-Build site.
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-Rmd
-</td>
-<td style="text-align:left;">
-78199ec
-</td>
-<td style="text-align:left;">
-carlmurie
-</td>
-<td style="text-align:left;">
-2019-03-20
-</td>
-<td style="text-align:left;">
-wflow_publish(all = TRUE)
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-Rmd
-</td>
-<td style="text-align:left;">
-00f25de
-</td>
-<td style="text-align:left;">
-carlmurie
-</td>
-<td style="text-align:left;">
-2018-11-08
-</td>
-<td style="text-align:left;">
-Start workflowr project.
+wflow_publish(files = “analysis/*.Rmd“)
 </td>
 </tr>
 </tbody>
@@ -457,146 +522,239 @@ Start workflowr project.
 </ul>
 <p></details></p>
 <hr />
-<div id="overview" class="section level1">
-<h1><span class="header-section-number">1</span> Overview</h1>
-<p>This project aims to understand characteristics of the RTS,S vaccine and identify collerates of vaccine efficacy (or more generally speaking clinical disease outcome) based on immunological assay data generated from MAL067.</p>
-<p><strong>Primary analysis</strong></p>
-<ol style="list-style-type: decimal">
-<li>Main effects: by stimulation and timepoint
-<ul>
-<li>differences in vaccine (rts,s - comparator)</li>
-<li>differences in disease (case - control)</li>
-<li>look at disease results for all significant gene-sets from vaccine comparison</li>
-</ul></li>
-<li>Interaction effects: by timepoint
-<ul>
-<li>differences in vaccine (rts,s - comparator) vs stimulation (stim - dmso)</li>
-<li>differences in disease (case - control) vs stimulation (stim - dmso)</li>
-<li>look at disease results for all significant gene-sets from vaccine comparison</li>
-</ul></li>
-</ol>
+<div id="test-monocytelymphocyte-ratios-for-disease-case-prediction" class="section level1">
+<h1><span class="header-section-number">1</span> Test monocyte/lymphocyte ratios for disease (case) prediction</h1>
+<p>The four cell subsets used in this analysis are:</p>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:center;">
+subsets
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">
+Lymphocytes
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+CD14+CD16- Classical Mono
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+CD14loCD16hi Inflammatory Mono
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+CD14+CD16+ Intermediate Mono
+</td>
+</tr>
+</tbody>
+</table>
+<p>clogit regression will be applied with the following formula:</p>
+<p>case ~ ml_ratio + sex + strata(match)</p>
+<p>107 samples were removed due to no match variable.</p>
+<div id="sample-size" class="section level2">
+<h2><span class="header-section-number">1.1</span> Sample size</h2>
+<p>Samples for each cell subset.</p>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="border-bottom:hidden" colspan="1">
+</th>
+<th style="border-bottom:hidden" colspan="1">
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+gender
 </div>
-<div id="experimental-design" class="section level1">
-<h1><span class="header-section-number">2</span> Experimental Design</h1>
-<div id="design" class="section level3">
-<h3><span class="header-section-number">2.0.1</span> <a href="experimental_design.html">Design</a></h3>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+disease
 </div>
+</th>
+</tr>
+<tr>
+<th style="text-align:left;">
+</th>
+<th style="text-align:center;">
+total
+</th>
+<th style="text-align:center;">
+F
+</th>
+<th style="text-align:center;">
+M
+</th>
+<th style="text-align:center;">
+control
+</th>
+<th style="text-align:center;">
+case
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+M0
+</td>
+<td style="text-align:center;">
+97
+</td>
+<td style="text-align:center;">
+44
+</td>
+<td style="text-align:center;">
+53
+</td>
+<td style="text-align:center;">
+60
+</td>
+<td style="text-align:center;">
+37
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+M3
+</td>
+<td style="text-align:center;">
+269
+</td>
+<td style="text-align:center;">
+128
+</td>
+<td style="text-align:center;">
+141
+</td>
+<td style="text-align:center;">
+197
+</td>
+<td style="text-align:center;">
+72
+</td>
+</tr>
+</tbody>
+</table>
 </div>
-<div id="primary-analysis" class="section level1">
-<h1><span class="header-section-number">3</span> Primary Analysis</h1>
-<div id="gsea" class="section level2">
-<h2><span class="header-section-number">3.1</span> GSEA</h2>
-<div id="main-effects-vaccine-and-disease-for-each-stimulation" class="section level3">
-<h3><span class="header-section-number">3.1.1</span> Main effects: vaccine and disease for each stimulation</h3>
-<div id="dmso-m0" class="section level4">
-<h4><span class="header-section-number">3.1.1.1</span> <a href="primary_main_M0_DMSO.html">DMSO: M0</a></h4>
+<div id="classical-monocytelymphocytes" class="section level2">
+<h2><span class="header-section-number">1.2</span> Classical Monocyte/Lymphocytes</h2>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:center;">
+visit
+</th>
+<th style="text-align:center;">
+p-value
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">
+M3
+</td>
+<td style="text-align:center;">
+0.7971428
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+M0
+</td>
+<td style="text-align:center;">
+0.8660736
+</td>
+</tr>
+</tbody>
+</table>
+<p><img src="figure/exploratory_ML_ratio.Rmd/class-1.png" width="672" style="display: block; margin: auto;" /></p>
 </div>
-<div id="dmso-m3" class="section level4">
-<h4><span class="header-section-number">3.1.1.2</span> <a href="primary_main_M3_DMSO.html">DMSO: M3</a></h4>
-</div>
-<div id="csp-m0" class="section level4">
-<h4><span class="header-section-number">3.1.1.3</span> <a href="primary_main_M0_CSP.html">CSP: M0</a></h4>
-</div>
-<div id="csp-m3" class="section level4">
-<h4><span class="header-section-number">3.1.1.4</span> <a href="primary_main_M3_CSP.html">CSP: M3</a></h4>
-</div>
-<div id="hbs-m0" class="section level4">
-<h4><span class="header-section-number">3.1.1.5</span> <a href="primary_main_M0_HBS.html">HBS: M0</a></h4>
-</div>
-<div id="hbs-m3" class="section level4">
-<h4><span class="header-section-number">3.1.1.6</span> <a href="primary_main_M3_HBS.html">HBS: M3</a></h4>
-</div>
-</div>
-<div id="interaction-effects-stimulation-stim---dmso-vs-diseasevaccine" class="section level3">
-<h3><span class="header-section-number">3.1.2</span> Interaction effects: stimulation (stim - dmso) vs disease/vaccine</h3>
-<div id="csp-m3-1" class="section level4">
-<h4><span class="header-section-number">3.1.2.1</span> <a href="primary_interaction_M3_CSP.html">CSP: M3</a></h4>
-</div>
-<div id="hbs-m3-1" class="section level4">
-<h4><span class="header-section-number">3.1.2.2</span> <a href="primary_interaction_M3_HBS.html">HBS: M3</a></h4>
-</div>
-</div>
-<div id="secondary" class="section level3">
-<h3><span class="header-section-number">3.1.3</span> Secondary</h3>
-<div id="gsea-timedisease-interaction-group" class="section level4">
-<h4><span class="header-section-number">3.1.3.1</span> <a href="secondary_DMSO_time_disease.html">GSEA: time*disease interaction group</a></h4>
-</div>
-<div id="gsea-vaccinedisease-interaction-for-time-point-m3" class="section level4">
-<h4><span class="header-section-number">3.1.3.2</span> <a href="secondary_vaccine_disease_interaction.html">GSEA: vaccine*disease interaction for time-point M3</a></h4>
-</div>
-</div>
-<div id="exploratory" class="section level3">
-<h3><span class="header-section-number">3.1.4</span> Exploratory</h3>
-<div id="faust-moncyte-analysis" class="section level4">
-<h4><span class="header-section-number">3.1.4.1</span> <a href="secondary_faust.html">Faust moncyte analysis</a></h4>
-</div>
-<div id="enriched-moncytes-ii" class="section level4">
-<h4><span class="header-section-number">3.1.4.2</span> <a href="exploratory_Enriched_Monocytes.html">enriched moncytes II</a></h4>
-</div>
-<div id="monocytelymphocyte-ratio-disease-prediction" class="section level4">
-<h4><span class="header-section-number">3.1.4.3</span> <a href="exploratory_ML_ratio.html">monocyte/lymphocyte ratio disease prediction</a></h4>
-</div>
-<div id="cytokine-stimdmso-ratios-disease-prediction" class="section level4">
-<h4><span class="header-section-number">3.1.4.4</span> <a href="exploratory_cytokine_rna.html">cytokine stim/DMSO ratios disease prediction</a></h4>
-</div>
-<div id="iavi-isotype-disease-prediction" class="section level4">
-<h4><span class="header-section-number">3.1.4.5</span> <a href="exploratory_iavi_rna.html">IAVI isotype disease prediction</a></h4>
-</div>
-<div id="cevac-disease-prediction" class="section level4">
-<h4><span class="header-section-number">3.1.4.6</span> <a href="exploratory_cevac_rna.html">CEVAC disease prediction</a></h4>
-</div>
-<div id="antibody-disease-prediction" class="section level4">
-<h4><span class="header-section-number">3.1.4.7</span> <a href="exploratory_antibody.html">antibody disease prediction</a></h4>
-</div>
-<div id="derosa-cell-subset-frequencies-disease-and-vaccine-effects" class="section level4">
-<h4><span class="header-section-number">3.1.4.8</span> <a href="exploratory_monocyte_derosa.html">DeRosa cell subset frequencies disease and vaccine effects</a></h4>
-</div>
-<div id="ics-cd4-csp-correlation-with-rnaseq-gene-expression" class="section level4">
-<h4><span class="header-section-number">3.1.4.9</span> <a href="exploratory_ICS_CD4_CSP.html">ICS CD4 CSP: correlation with RNASeq gene expression</a></h4>
-</div>
-<div id="ics-cd4-hbs-correlation-with-rnaseq-gene-expression" class="section level4">
-<h4><span class="header-section-number">3.1.4.10</span> <a href="exploratory_ICS_CD4_HBS.html">ICS CD4 HBS: correlation with RNASeq gene expression</a></h4>
-</div>
-<div id="ics-cd8-csp-correlation-with-rnaseq-gene-expression" class="section level4">
-<h4><span class="header-section-number">3.1.4.11</span> <a href="exploratory_ICS_CD8_CSP.html">ICS CD8 CSP: correlation with RNASeq gene expression</a></h4>
-</div>
-<div id="ics-cd8-hbs-correlation-with-rnaseq-gene-expression" class="section level4">
-<h4><span class="header-section-number">3.1.4.12</span> <a href="exploratory_ICS_CD8_HBS.html">ICS CD8 HBS: correlation with RNASeq gene expression</a></h4>
-</div>
-<div id="ics-cd4-magnitude-difference-truncated-correlation-with-rnaseq-gene-expression" class="section level4">
-<h4><span class="header-section-number">3.1.4.13</span> <a href="exploratory_ICS_Mag.html">ICS CD4 magnitude difference (truncated): correlation with RNASeq gene expression</a></h4>
-</div>
-</div>
+<div id="classicalintermediateinflammatory-monocytelymphocytes" class="section level2">
+<h2><span class="header-section-number">1.3</span> Classical+Intermediate+Inflammatory Monocyte/Lymphocytes</h2>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:center;">
+visit
+</th>
+<th style="text-align:center;">
+p-value
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">
+M3
+</td>
+<td style="text-align:center;">
+0.7699842
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+M0
+</td>
+<td style="text-align:center;">
+0.5688874
+</td>
+</tr>
+</tbody>
+</table>
+<p><img src="figure/exploratory_ML_ratio.Rmd/class_sum-1.png" width="672" style="display: block; margin: auto;" /></p>
 </div>
 <div id="session-information" class="section level2">
-<h2><span class="header-section-number">3.2</span> Session information</h2>
-<pre class="r"><code>sessionInfo()</code></pre>
-<pre><code>R version 3.5.0 (2018-04-23)
-Platform: x86_64-pc-linux-gnu (64-bit)
-Running under: Ubuntu 14.04.5 LTS
-
-Matrix products: default
-BLAS/LAPACK: /app/easybuild/software/OpenBLAS/0.2.18-GCC-5.4.0-2.26-LAPACK-3.6.1/lib/libopenblas_prescottp-r0.2.18.so
-
-locale:
- [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
- [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    
- [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   
- [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 
- [9] LC_ADDRESS=C               LC_TELEPHONE=C            
-[11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       
-
-attached base packages:
-[1] stats     graphics  grDevices utils     datasets  methods   base     
-
-loaded via a namespace (and not attached):
- [1] workflowr_1.1.1   Rcpp_1.0.0        digest_0.6.18    
- [4] rprojroot_1.3-2   R.methodsS3_1.7.1 backports_1.1.2  
- [7] magrittr_1.5      git2r_0.24.0      evaluate_0.13    
-[10] stringi_1.3.1     whisker_0.3-2     R.oo_1.22.0      
-[13] R.utils_2.7.0     rmarkdown_1.11    tools_3.5.0      
-[16] stringr_1.4.0     xfun_0.5          yaml_2.2.0       
-[19] compiler_3.5.0    htmltools_0.3.6   knitr_1.21       </code></pre>
+<h2><span class="header-section-number">1.4</span> Session information</h2>
+<p>R version 3.5.0 (2018-04-23) Platform: x86_64-pc-linux-gnu (64-bit) Running under: Ubuntu 14.04.5 LTS</p>
+<p>Matrix products: default BLAS/LAPACK: /app/easybuild/software/OpenBLAS/0.2.18-GCC-5.4.0-2.26-LAPACK-3.6.1/lib/libopenblas_prescottp-r0.2.18.so</p>
+<p>locale: [1] LC_CTYPE=en_US.UTF-8 LC_NUMERIC=C<br />
+[3] LC_TIME=en_US.UTF-8 LC_COLLATE=en_US.UTF-8<br />
+[5] LC_MONETARY=en_US.UTF-8 LC_MESSAGES=en_US.UTF-8<br />
+[7] LC_PAPER=en_US.UTF-8 LC_NAME=C<br />
+[9] LC_ADDRESS=C LC_TELEPHONE=C<br />
+[11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C</p>
+<p>attached base packages: [1] stats4 parallel stats graphics grDevices utils datasets [8] methods base</p>
+<p>other attached packages: [1] mal067data_1.0 kableExtra_1.0.1 MAL067Package_1.0<br />
+[4] GSEABase_1.42.0 graph_1.58.0 annotate_1.58.0<br />
+[7] XML_3.98-1.11 AnnotationDbi_1.42.1 IRanges_2.14.6<br />
+[10] S4Vectors_0.18.1 survival_2.42-3 data.table_1.12.0<br />
+[13] here_0.1 magrittr_1.5 forcats_0.3.0<br />
+[16] stringr_1.4.0 dplyr_0.7.99.9000 purrr_0.2.5<br />
+[19] readr_1.3.1 tidyr_0.8.0 tibble_2.0.1<br />
+[22] ggplot2_3.1.0 tidyverse_1.2.1 limma_3.36.1<br />
+[25] Biobase_2.42.0 BiocGenerics_0.28.0 RNASeqUtilities_1.1 [28] knitr_1.21</p>
+<p>loaded via a namespace (and not attached): [1] nlme_3.1-137 bitops_1.0-6 lubridate_1.7.4<br />
+[4] bit64_0.9-7 webshot_0.5.1 httr_1.4.0<br />
+[7] rprojroot_1.3-2 tools_3.5.0 backports_1.1.2<br />
+[10] R6_2.4.0 DT_0.5 DBI_1.0.0<br />
+[13] lazyeval_0.2.1 colorspace_1.4-0 withr_2.1.2<br />
+[16] tidyselect_0.2.5 gridExtra_2.3 bit_1.1-14<br />
+[19] compiler_3.5.0 git2r_0.24.0 cli_1.0.1<br />
+[22] rvest_0.3.2 xml2_1.2.0 labeling_0.3<br />
+[25] scales_1.0.0 digest_0.6.18 rmarkdown_1.11<br />
+[28] R.utils_2.7.0 pkgconfig_2.0.2 htmltools_0.3.6<br />
+[31] htmlwidgets_1.3 rlang_0.3.1 readxl_1.1.0<br />
+[34] rstudioapi_0.9.0 RSQLite_2.1.1 generics_0.0.2<br />
+[37] jsonlite_1.6 R.oo_1.22.0 RCurl_1.95-4.10<br />
+[40] Matrix_1.2-14 Rcpp_1.0.0 munsell_0.5.0<br />
+[43] R.methodsS3_1.7.1 stringi_1.3.1 whisker_0.3-2<br />
+[46] yaml_2.2.0 plyr_1.8.4 grid_3.5.0<br />
+[49] blob_1.1.1 crayon_1.3.4 lattice_0.20-35<br />
+[52] haven_2.0.0 splines_3.5.0 hms_0.4.2<br />
+[55] pillar_1.3.1 glue_1.3.0 evaluate_0.13<br />
+[58] modelr_0.1.1 cellranger_1.1.0 gtable_0.2.0<br />
+[61] assertthat_0.2.0 xfun_0.5 xtable_1.8-3<br />
+[64] broom_0.5.1 viridisLite_0.3.0 memoise_1.1.0<br />
+[67] workflowr_1.1.1</p>
 </div>
 </div>
 
@@ -621,6 +779,8 @@ footer is added to webpages before the MathJax javascript. -->
 <hr>
 
 
+</div>
+</div>
 
 </div>
 

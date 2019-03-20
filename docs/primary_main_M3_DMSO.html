@@ -1,0 +1,6851 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+
+<meta name="author" content="Carl Murie and Raphael Gottardo" />
+
+<meta name="date" content="2019-03-20" />
+
+<title>GSEA main effects: stimulation vs disease/vaccine</title>
+
+<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/lumen.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="site_libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<script src="site_libs/kePrint-0.0.1/kePrint.js"></script>
+<link href="site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet" />
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+</head>
+
+<body>
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+  height: auto;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+<style type="text/css">
+/* padding for bootstrap navbar */
+body {
+  padding-top: 51px;
+  padding-bottom: 40px;
+}
+/* offset scroll position for anchor links (for fixed navbar)  */
+.section h1 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h2 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h3 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h4 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h5 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h6 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #ffffff;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script>
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.parent().addClass('active');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+});
+</script>
+
+<div class="container-fluid main-container">
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+  padding-left: 25px;
+  text-indent: 0;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">mal067project</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+<li>
+  <a href="about.html">About</a>
+</li>
+<li>
+  <a href="license.html">License</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://github.com/jdblischak/workflowr">
+    <span class="fa fa-github"></span>
+     
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<!-- Add a small amount of space between sections. -->
+<style type="text/css">
+div.section {
+  padding-top: 12px;
+}
+</style>
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">GSEA main effects: stimulation vs disease/vaccine</h1>
+<h3 class="subtitle"><em>DMSO: M3</em></h3>
+<h4 class="author"><em>Carl Murie and Raphael Gottardo</em></h4>
+<h4 class="date"><em>March 20, 2019</em></h4>
+
+</div>
+
+
+<p><strong>Last updated:</strong> 2019-03-20</p>
+<strong>workflowr checks:</strong> <small>(Click a bullet for more information)</small>
+<ul>
+<li>
+<p><details> <summary> <strong style="color:blue;">✔</strong> <strong>R Markdown file:</strong> up-to-date </summary></p>
+<p>Great! Since the R Markdown file has been committed to the Git repository, you know the exact version of the code that produced these results.</p>
+</details>
+</li>
+<li>
+<p><details> <summary> <strong style="color:blue;">✔</strong> <strong>Environment:</strong> empty </summary></p>
+<p>Great job! The global environment was empty. Objects defined in the global environment can affect the analysis in your R Markdown file in unknown ways. For reproduciblity it’s best to always run the code in an empty environment.</p>
+</details>
+</li>
+<li>
+<p><details> <summary> <strong style="color:blue;">✔</strong> <strong>Seed:</strong> <code>set.seed(20181108)</code> </summary></p>
+<p>The command <code>set.seed(20181108)</code> was run prior to running the code in the R Markdown file. Setting a seed ensures that any results that rely on randomness, e.g. subsampling or permutations, are reproducible.</p>
+</details>
+</li>
+<li>
+<p><details> <summary> <strong style="color:blue;">✔</strong> <strong>Session information:</strong> recorded </summary></p>
+<p>Great job! Recording the operating system, R version, and package versions is critical for reproducibility.</p>
+</details>
+</li>
+<li>
+<p><details> <summary> <strong style="color:blue;">✔</strong> <strong>Repository version:</strong> 55d014c </summary></p>
+Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility. The version displayed above was the version of the Git repository at the time these results were generated. <br><br> Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
+<pre><code>
+Ignored files:
+    Ignored:    .Rhistory
+
+Untracked files:
+    Untracked:  analysis/children/
+    Untracked:  code/mal_utilities.R
+    Untracked:  cor_table.RDS
+    Untracked:  data/170830-RTSS case control phenotyping.txt
+    Untracked:  data/BTM_for_GSEA_20131008.gmt
+    Untracked:  data/CD4_CSP_PFS.rds
+    Untracked:  data/CD4_HBS_PFS.rds
+    Untracked:  data/CD8_CSP_PFS.rds
+    Untracked:  data/CD8_HBS_PFS.rds
+    Untracked:  data/PRIMARY_CD4_MAGNITUDE.rds
+    Untracked:  data/faustOutputAllRtss_v02.csv
+    Untracked:  data/ics_extra_vars_20180515.csv
+    Untracked:  data/m067_seattle_data.RData
+    Untracked:  data/phenoLineagePctLive.txt
+    Untracked:  docs/figure/
+    Untracked:  output/dmso_M0_both_disease.csv
+    Untracked:  output/dmso_M0_old_disease.csv
+    Untracked:  output/dmso_M3_both_disease.csv
+    Untracked:  output/dmso_M3_old_disease.csv
+    Untracked:  output/dmso_M3_young_disease.csv
+
+</code></pre>
+Note that any generated files, e.g. HTML, png, CSS, etc., are not included in this status report because it is ok for generated content to have uncommitted changes. </details>
+</li>
+</ul>
+<details> <summary> <small><strong>Expand here to see past versions:</strong></small> </summary>
+<ul>
+<table style="border-collapse:separate; border-spacing:5px;">
+<thead>
+<tr>
+<th style="text-align:left;">
+File
+</th>
+<th style="text-align:left;">
+Version
+</th>
+<th style="text-align:left;">
+Author
+</th>
+<th style="text-align:left;">
+Date
+</th>
+<th style="text-align:left;">
+Message
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Rmd
+</td>
+<td style="text-align:left;">
+55d014c
+</td>
+<td style="text-align:left;">
+carlmurie
+</td>
+<td style="text-align:left;">
+2019-03-20
+</td>
+<td style="text-align:left;">
+wflow_publish(files = “analysis/*.Rmd“)
+</td>
+</tr>
+</tbody>
+</table>
+</ul>
+<p></details></p>
+<hr />
+<div id="gsea-dmso-vaccine-and-disease-main-effects" class="section level1">
+<h1><span class="header-section-number">1</span> GSEA DMSO: vaccine and disease main effects</h1>
+<p><strong>vaccine linear model:</strong> ~plate + total_reads + age_weeks + vaccine<br />
+<strong>vaccine filtering :</strong> M3</p>
+<p><strong>disease linear model:</strong> ~plate + total_reads + age_weeks + case<br />
+<strong>disease filtering :</strong> M3, case/control, rtss</p>
+<div id="both-age-groups-young-and-old" class="section level2 tabset tabset-fade tabset-pills">
+<h2><span class="header-section-number">1.1</span> both age groups (young and old)</h2>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<caption>
+vaccine sample size
+</caption>
+<thead>
+<tr>
+<th style="border-bottom:hidden" colspan="1">
+</th>
+<th style="border-bottom:hidden" colspan="1">
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+vaccine
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+case
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+age
+</div>
+</th>
+</tr>
+<tr>
+<th style="text-align:left;">
+</th>
+<th style="text-align:center;">
+total
+</th>
+<th style="text-align:center;">
+comparator
+</th>
+<th style="text-align:center;">
+rtss
+</th>
+<th style="text-align:center;">
+control
+</th>
+<th style="text-align:center;">
+case
+</th>
+<th style="text-align:center;">
+neither
+</th>
+<th style="text-align:center;">
+young
+</th>
+<th style="text-align:center;">
+old
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+dmso
+</td>
+<td style="text-align:center;">
+348
+</td>
+<td style="text-align:center;">
+131
+</td>
+<td style="text-align:center;">
+217
+</td>
+<td style="text-align:center;">
+139
+</td>
+<td style="text-align:center;">
+53
+</td>
+<td style="text-align:center;">
+156
+</td>
+<td style="text-align:center;">
+129
+</td>
+<td style="text-align:center;">
+219
+</td>
+</tr>
+</tbody>
+</table>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<caption>
+disease sample size
+</caption>
+<thead>
+<tr>
+<th style="border-bottom:hidden" colspan="1">
+</th>
+<th style="border-bottom:hidden" colspan="1">
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+vaccine
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+case
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+age
+</div>
+</th>
+</tr>
+<tr>
+<th style="text-align:left;">
+</th>
+<th style="text-align:center;">
+total
+</th>
+<th style="text-align:center;">
+comparator
+</th>
+<th style="text-align:center;">
+rtss
+</th>
+<th style="text-align:center;">
+control
+</th>
+<th style="text-align:center;">
+case
+</th>
+<th style="text-align:center;">
+young
+</th>
+<th style="text-align:center;">
+old
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+dmso
+</td>
+<td style="text-align:center;">
+122
+</td>
+<td style="text-align:center;">
+0
+</td>
+<td style="text-align:center;">
+122
+</td>
+<td style="text-align:center;">
+92
+</td>
+<td style="text-align:center;">
+30
+</td>
+<td style="text-align:center;">
+53
+</td>
+<td style="text-align:center;">
+69
+</td>
+</tr>
+</tbody>
+</table>
+<div id="vaccine" class="section level3">
+<h3><span class="header-section-number">1.1.1</span> vaccine</h3>
+<div style="border: 1px solid #ddd; padding: 5px; overflow-y: scroll; height:600px; ">
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:left;">
+geneset
+</th>
+<th style="text-align:left;">
+NGenes
+</th>
+<th style="text-align:left;">
+Direction
+</th>
+<th style="text-align:left;">
+PValue
+</th>
+<th style="text-align:left;">
+FDR
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+enriched in NK cells (I) (M7.2)
+</td>
+<td style="text-align:left;">
+45
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0000000
+</td>
+<td style="text-align:left;">
+0.0000014
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in T cells (I) (M7.0)
+</td>
+<td style="text-align:left;">
+56
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0000008
+</td>
+<td style="text-align:left;">
+0.0001117
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in NK cells (II) (M61.0)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0003768
+</td>
+<td style="text-align:left;">
+0.0267300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell activation (III) (M7.4)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0004971
+</td>
+<td style="text-align:left;">
+0.0267300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in B cells (II) (M47.1)
+</td>
+<td style="text-align:left;">
+32
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0005043
+</td>
+<td style="text-align:left;">
+0.0267300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell activation (I) (M7.1)
+</td>
+<td style="text-align:left;">
+47
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0016480
+</td>
+<td style="text-align:left;">
+0.0533500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+immune activation - generic cluster (M37.0)
+</td>
+<td style="text-align:left;">
+210
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0017320
+</td>
+<td style="text-align:left;">
+0.0533500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+myeloid cell enriched receptors and transporters (M4.3)
+</td>
+<td style="text-align:left;">
+26
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0017590
+</td>
+<td style="text-align:left;">
+0.0533500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in B cells (I) (M47.0)
+</td>
+<td style="text-align:left;">
+39
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0020140
+</td>
+<td style="text-align:left;">
+0.0533500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M72.0)
+</td>
+<td style="text-align:left;">
+21
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0021540
+</td>
+<td style="text-align:left;">
+0.0533500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+chromosome Y linked (M240)
+</td>
+<td style="text-align:left;">
+9
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0023460
+</td>
+<td style="text-align:left;">
+0.0533500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+plasma cells &amp; B cells, immunoglobulins (M156.0)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0025290
+</td>
+<td style="text-align:left;">
+0.0533500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in myeloid cells and monocytes (M81)
+</td>
+<td style="text-align:left;">
+23
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0027230
+</td>
+<td style="text-align:left;">
+0.0533500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M211)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0028190
+</td>
+<td style="text-align:left;">
+0.0533500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched for ubiquitination (M138)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0035330
+</td>
+<td style="text-align:left;">
+0.0594000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in B cells (VI) (M69)
+</td>
+<td style="text-align:left;">
+18
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0035860
+</td>
+<td style="text-align:left;">
+0.0594000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+signaling in T cells (II) (M35.1)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0050020
+</td>
+<td style="text-align:left;">
+0.0779800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+complement activation (I) (M112.0)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0067290
+</td>
+<td style="text-align:left;">
+0.0990700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in B cells (III) (M47.2)
+</td>
+<td style="text-align:left;">
+22
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0071080
+</td>
+<td style="text-align:left;">
+0.0991400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M203)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0081430
+</td>
+<td style="text-align:left;">
+0.1079000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+B cell surface signature (S2)
+</td>
+<td style="text-align:left;">
+70
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0120200
+</td>
+<td style="text-align:left;">
+0.1358000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+heme biosynthesis (II) (M222)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0128100
+</td>
+<td style="text-align:left;">
+0.1358000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in G-protein coupled receptors (M130)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0132300
+</td>
+<td style="text-align:left;">
+0.1358000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+chemokines and inflammatory molecules in myeloid cells (M86.0)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0133400
+</td>
+<td style="text-align:left;">
+0.1358000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M174)
+</td>
+<td style="text-align:left;">
+22
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0135800
+</td>
+<td style="text-align:left;">
+0.1358000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in NK cells (III) (M157)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0137200
+</td>
+<td style="text-align:left;">
+0.1358000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in monocytes (II) (M11.0)
+</td>
+<td style="text-align:left;">
+146
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0138300
+</td>
+<td style="text-align:left;">
+0.1358000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+signaling in T cells (I) (M35.0)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0173500
+</td>
+<td style="text-align:left;">
+0.1642000
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="disease" class="section level3">
+<h3><span class="header-section-number">1.1.2</span> disease</h3>
+<div style="border: 1px solid #ddd; padding: 5px; overflow-y: scroll; height:600px; ">
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:left;">
+geneset
+</th>
+<th style="text-align:left;">
+NGenes
+</th>
+<th style="text-align:left;">
+Direction
+</th>
+<th style="text-align:left;">
+PValue
+</th>
+<th style="text-align:left;">
+FDR
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+respiratory electron transport chain (mitochondrion) (M238)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0000168
+</td>
+<td style="text-align:left;">
+0.004439
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+respiratory electron transport chain (mitochondrion) (M219)
+</td>
+<td style="text-align:left;">
+18
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0011870
+</td>
+<td style="text-align:left;">
+0.157200
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="disease-significant-vaccine-gene-sets" class="section level3">
+<h3><span class="header-section-number">1.1.3</span> disease: significant vaccine gene-sets</h3>
+<div style="border: 1px solid #ddd; padding: 5px; overflow-y: scroll; height:300px; ">
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:center;">
+geneset
+</th>
+<th style="text-align:center;">
+NGenes
+</th>
+<th style="text-align:center;">
+Direction
+</th>
+<th style="text-align:center;">
+PValue
+</th>
+<th style="text-align:center;">
+FDR
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">
+enriched in monocytes (II) (M11.0)
+</td>
+<td style="text-align:center;">
+146
+</td>
+<td style="text-align:center;">
+Up
+</td>
+<td style="text-align:center;">
+0.0052682
+</td>
+<td style="text-align:center;">
+0.0742011
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+enriched in myeloid cells and monocytes (M81)
+</td>
+<td style="text-align:center;">
+23
+</td>
+<td style="text-align:center;">
+Up
+</td>
+<td style="text-align:center;">
+0.0094666
+</td>
+<td style="text-align:center;">
+0.0742011
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+myeloid cell enriched receptors and transporters (M4.3)
+</td>
+<td style="text-align:center;">
+26
+</td>
+<td style="text-align:center;">
+Up
+</td>
+<td style="text-align:center;">
+0.0097245
+</td>
+<td style="text-align:center;">
+0.0742011
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+TBA (M174)
+</td>
+<td style="text-align:center;">
+22
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.0106002
+</td>
+<td style="text-align:center;">
+0.0742011
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+TBA (M203)
+</td>
+<td style="text-align:center;">
+13
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.0666739
+</td>
+<td style="text-align:center;">
+0.3135325
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+T cell activation (III) (M7.4)
+</td>
+<td style="text-align:center;">
+13
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.0839514
+</td>
+<td style="text-align:center;">
+0.3135325
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+enriched in T cells (I) (M7.0)
+</td>
+<td style="text-align:center;">
+56
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.0872024
+</td>
+<td style="text-align:center;">
+0.3135325
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+chemokines and inflammatory molecules in myeloid cells (M86.0)
+</td>
+<td style="text-align:center;">
+17
+</td>
+<td style="text-align:center;">
+Up
+</td>
+<td style="text-align:center;">
+0.0993059
+</td>
+<td style="text-align:center;">
+0.3135325
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+immune activation - generic cluster (M37.0)
+</td>
+<td style="text-align:center;">
+210
+</td>
+<td style="text-align:center;">
+Up
+</td>
+<td style="text-align:center;">
+0.1007783
+</td>
+<td style="text-align:center;">
+0.3135325
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+enriched for ubiquitination (M138)
+</td>
+<td style="text-align:center;">
+11
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.1595978
+</td>
+<td style="text-align:center;">
+0.4468738
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+complement activation (I) (M112.0)
+</td>
+<td style="text-align:center;">
+10
+</td>
+<td style="text-align:center;">
+Up
+</td>
+<td style="text-align:center;">
+0.1888715
+</td>
+<td style="text-align:center;">
+0.4483665
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+TBA (M211)
+</td>
+<td style="text-align:center;">
+10
+</td>
+<td style="text-align:center;">
+Up
+</td>
+<td style="text-align:center;">
+0.1921571
+</td>
+<td style="text-align:center;">
+0.4483665
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+heme biosynthesis (II) (M222)
+</td>
+<td style="text-align:center;">
+10
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.2161192
+</td>
+<td style="text-align:center;">
+0.4654875
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+enriched in B cells (VI) (M69)
+</td>
+<td style="text-align:center;">
+18
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.3010106
+</td>
+<td style="text-align:center;">
+0.6020211
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+signaling in T cells (II) (M35.1)
+</td>
+<td style="text-align:center;">
+10
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.3716047
+</td>
+<td style="text-align:center;">
+0.6936621
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+B cell surface signature (S2)
+</td>
+<td style="text-align:center;">
+70
+</td>
+<td style="text-align:center;">
+Up
+</td>
+<td style="text-align:center;">
+0.4243248
+</td>
+<td style="text-align:center;">
+0.7425684
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+signaling in T cells (I) (M35.0)
+</td>
+<td style="text-align:center;">
+13
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.5922401
+</td>
+<td style="text-align:center;">
+0.9457372
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+enriched in B cells (I) (M47.0)
+</td>
+<td style="text-align:center;">
+39
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.6222820
+</td>
+<td style="text-align:center;">
+0.9457372
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+enriched in B cells (II) (M47.1)
+</td>
+<td style="text-align:center;">
+32
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.6599505
+</td>
+<td style="text-align:center;">
+0.9457372
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+T cell activation (I) (M7.1)
+</td>
+<td style="text-align:center;">
+47
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.6779758
+</td>
+<td style="text-align:center;">
+0.9457372
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+enriched in G-protein coupled receptors (M130)
+</td>
+<td style="text-align:center;">
+10
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.7511680
+</td>
+<td style="text-align:center;">
+0.9457372
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+TBA (M72.0)
+</td>
+<td style="text-align:center;">
+21
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.7784541
+</td>
+<td style="text-align:center;">
+0.9457372
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+enriched in NK cells (III) (M157)
+</td>
+<td style="text-align:center;">
+13
+</td>
+<td style="text-align:center;">
+Up
+</td>
+<td style="text-align:center;">
+0.8663854
+</td>
+<td style="text-align:center;">
+0.9457372
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+enriched in NK cells (II) (M61.0)
+</td>
+<td style="text-align:center;">
+13
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.8705520
+</td>
+<td style="text-align:center;">
+0.9457372
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+chromosome Y linked (M240)
+</td>
+<td style="text-align:center;">
+9
+</td>
+<td style="text-align:center;">
+Up
+</td>
+<td style="text-align:center;">
+0.8786807
+</td>
+<td style="text-align:center;">
+0.9457372
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+enriched in B cells (III) (M47.2)
+</td>
+<td style="text-align:center;">
+22
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.9056446
+</td>
+<td style="text-align:center;">
+0.9457372
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+plasma cells &amp; B cells, immunoglobulins (M156.0)
+</td>
+<td style="text-align:center;">
+17
+</td>
+<td style="text-align:center;">
+Up
+</td>
+<td style="text-align:center;">
+0.9119609
+</td>
+<td style="text-align:center;">
+0.9457372
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+enriched in NK cells (I) (M7.2)
+</td>
+<td style="text-align:center;">
+45
+</td>
+<td style="text-align:center;">
+Down
+</td>
+<td style="text-align:center;">
+0.9907804
+</td>
+<td style="text-align:center;">
+0.9907804
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div id="young-age-group" class="section level2 tabset tabset-fade tabset-pills">
+<h2><span class="header-section-number">1.2</span> young age group</h2>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<caption>
+vaccine sample size
+</caption>
+<thead>
+<tr>
+<th style="border-bottom:hidden" colspan="1">
+</th>
+<th style="border-bottom:hidden" colspan="1">
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+vaccine
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+case
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+age
+</div>
+</th>
+</tr>
+<tr>
+<th style="text-align:left;">
+</th>
+<th style="text-align:center;">
+total
+</th>
+<th style="text-align:center;">
+comparator
+</th>
+<th style="text-align:center;">
+rtss
+</th>
+<th style="text-align:center;">
+control
+</th>
+<th style="text-align:center;">
+case
+</th>
+<th style="text-align:center;">
+neither
+</th>
+<th style="text-align:center;">
+young
+</th>
+<th style="text-align:center;">
+old
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+dmso
+</td>
+<td style="text-align:center;">
+129
+</td>
+<td style="text-align:center;">
+50
+</td>
+<td style="text-align:center;">
+79
+</td>
+<td style="text-align:center;">
+56
+</td>
+<td style="text-align:center;">
+18
+</td>
+<td style="text-align:center;">
+55
+</td>
+<td style="text-align:center;">
+129
+</td>
+<td style="text-align:center;">
+0
+</td>
+</tr>
+</tbody>
+</table>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<caption>
+disease sample size
+</caption>
+<thead>
+<tr>
+<th style="border-bottom:hidden" colspan="1">
+</th>
+<th style="border-bottom:hidden" colspan="1">
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+vaccine
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+case
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+age
+</div>
+</th>
+</tr>
+<tr>
+<th style="text-align:left;">
+</th>
+<th style="text-align:center;">
+total
+</th>
+<th style="text-align:center;">
+comparator
+</th>
+<th style="text-align:center;">
+rtss
+</th>
+<th style="text-align:center;">
+control
+</th>
+<th style="text-align:center;">
+case
+</th>
+<th style="text-align:center;">
+young
+</th>
+<th style="text-align:center;">
+old
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+dmso
+</td>
+<td style="text-align:center;">
+53
+</td>
+<td style="text-align:center;">
+0
+</td>
+<td style="text-align:center;">
+53
+</td>
+<td style="text-align:center;">
+41
+</td>
+<td style="text-align:center;">
+12
+</td>
+<td style="text-align:center;">
+53
+</td>
+<td style="text-align:center;">
+0
+</td>
+</tr>
+</tbody>
+</table>
+<div id="vaccine-1" class="section level3">
+<h3><span class="header-section-number">1.2.1</span> vaccine</h3>
+<div style="border: 1px solid #ddd; padding: 5px; overflow-y: scroll; height:600px; ">
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:left;">
+geneset
+</th>
+<th style="text-align:left;">
+NGenes
+</th>
+<th style="text-align:left;">
+Direction
+</th>
+<th style="text-align:left;">
+PValue
+</th>
+<th style="text-align:left;">
+FDR
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+enriched in B cells (I) (M47.0)
+</td>
+<td style="text-align:left;">
+39
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0000332
+</td>
+<td style="text-align:left;">
+0.008255
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in B cells (II) (M47.1)
+</td>
+<td style="text-align:left;">
+32
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0000623
+</td>
+<td style="text-align:left;">
+0.008255
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (source: B cells) (M152.0)
+</td>
+<td style="text-align:left;">
+6
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0003343
+</td>
+<td style="text-align:left;">
+0.027730
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in naive and memory B cells (M83)
+</td>
+<td style="text-align:left;">
+9
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0004186
+</td>
+<td style="text-align:left;">
+0.027730
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (source: memory B cells) (M152.2)
+</td>
+<td style="text-align:left;">
+6
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0006704
+</td>
+<td style="text-align:left;">
+0.030540
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell division - E2F transcription network (M4.8)
+</td>
+<td style="text-align:left;">
+14
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0006915
+</td>
+<td style="text-align:left;">
+0.030540
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched for TF motif PAX3 (M179)
+</td>
+<td style="text-align:left;">
+8
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0020120
+</td>
+<td style="text-align:left;">
+0.076180
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in B cells (VI) (M69)
+</td>
+<td style="text-align:left;">
+18
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0032030
+</td>
+<td style="text-align:left;">
+0.104200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M72.1)
+</td>
+<td style="text-align:left;">
+16
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0035400
+</td>
+<td style="text-align:left;">
+0.104200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M72.2)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0062560
+</td>
+<td style="text-align:left;">
+0.165800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+mitosis (TF motif CCAATNNSNNNGCG) (M169)
+</td>
+<td style="text-align:left;">
+14
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0072240
+</td>
+<td style="text-align:left;">
+0.174000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+purine nucleotide biosynthesis (M212)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0083860
+</td>
+<td style="text-align:left;">
+0.185200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+chaperonin mediated protein folding (I) (M204.0)
+</td>
+<td style="text-align:left;">
+14
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0090990
+</td>
+<td style="text-align:left;">
+0.185500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+platelet activation (II) (M32.1)
+</td>
+<td style="text-align:left;">
+20
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0102100
+</td>
+<td style="text-align:left;">
+0.193200
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="disease-1" class="section level3">
+<h3><span class="header-section-number">1.2.2</span> disease</h3>
+<div style="border: 1px solid #ddd; padding: 5px; overflow-y: scroll; height:600px; ">
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:left;">
+geneset
+</th>
+<th style="text-align:left;">
+NGenes
+</th>
+<th style="text-align:left;">
+Direction
+</th>
+<th style="text-align:left;">
+PValue
+</th>
+<th style="text-align:left;">
+FDR
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+enriched in myeloid cells and monocytes (M81)
+</td>
+<td style="text-align:left;">
+23
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0000801
+</td>
+<td style="text-align:left;">
+0.01689
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+proinflammatory cytokines and chemokines (M29)
+</td>
+<td style="text-align:left;">
+9
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0001275
+</td>
+<td style="text-align:left;">
+0.01689
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+suppression of MAPK signaling (M56)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0002772
+</td>
+<td style="text-align:left;">
+0.02096
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell adhesion (GO) (M117)
+</td>
+<td style="text-align:left;">
+20
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0004370
+</td>
+<td style="text-align:left;">
+0.02096
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell differentiation (Th2) (M19)
+</td>
+<td style="text-align:left;">
+15
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0004978
+</td>
+<td style="text-align:left;">
+0.02096
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+CORO1A-DEF6 network (II) (M32.4)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0005231
+</td>
+<td style="text-align:left;">
+0.02096
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in monocytes (II) (M11.0)
+</td>
+<td style="text-align:left;">
+146
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0006241
+</td>
+<td style="text-align:left;">
+0.02096
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell cycle and growth arrest (M31)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0006838
+</td>
+<td style="text-align:left;">
+0.02096
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+chemokines and inflammatory molecules in myeloid cells (M86.0)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0007328
+</td>
+<td style="text-align:left;">
+0.02096
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+extracellular matrix (II) (M2.1)
+</td>
+<td style="text-align:left;">
+18
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0008158
+</td>
+<td style="text-align:left;">
+0.02096
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+antigen processing and presentation (M200)
+</td>
+<td style="text-align:left;">
+6
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0008702
+</td>
+<td style="text-align:left;">
+0.02096
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+RA, WNT, CSF receptors network (monocyte) (M23)
+</td>
+<td style="text-align:left;">
+9
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0009927
+</td>
+<td style="text-align:left;">
+0.02192
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in naive and memory B cells (M83)
+</td>
+<td style="text-align:left;">
+9
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0012320
+</td>
+<td style="text-align:left;">
+0.02512
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell activation (I) (M7.1)
+</td>
+<td style="text-align:left;">
+47
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0013370
+</td>
+<td style="text-align:left;">
+0.02531
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+B cell surface signature (S2)
+</td>
+<td style="text-align:left;">
+70
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0014820
+</td>
+<td style="text-align:left;">
+0.02619
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+CD1 and other DC receptors (M50)
+</td>
+<td style="text-align:left;">
+6
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0025800
+</td>
+<td style="text-align:left;">
+0.04264
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in monocytes (I) (M4.15)
+</td>
+<td style="text-align:left;">
+8
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0027350
+</td>
+<td style="text-align:left;">
+0.04264
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell adhesion (M51)
+</td>
+<td style="text-align:left;">
+8
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0032800
+</td>
+<td style="text-align:left;">
+0.04652
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell signaling and costimulation (M44)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0033360
+</td>
+<td style="text-align:left;">
+0.04652
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in activated dendritic cells (I) (M119)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0044290
+</td>
+<td style="text-align:left;">
+0.05706
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in monocytes (III) (M73)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0045220
+</td>
+<td style="text-align:left;">
+0.05706
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+KLF12 targets network (M32.3)
+</td>
+<td style="text-align:left;">
+15
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0068950
+</td>
+<td style="text-align:left;">
+0.08306
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in T cells (I) (M7.0)
+</td>
+<td style="text-align:left;">
+56
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0077930
+</td>
+<td style="text-align:left;">
+0.08979
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+AP-1 transcription factor network (M20)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0083370
+</td>
+<td style="text-align:left;">
+0.09205
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+proinflammatory dendritic cell, myeloid cell response (M86.1)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0088440
+</td>
+<td style="text-align:left;">
+0.09232
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in B cells (III) (M47.2)
+</td>
+<td style="text-align:left;">
+22
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0090580
+</td>
+<td style="text-align:left;">
+0.09232
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell differentiation via ITK and PKC (M18)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0098590
+</td>
+<td style="text-align:left;">
+0.09677
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in B cells (II) (M47.1)
+</td>
+<td style="text-align:left;">
+32
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0104900
+</td>
+<td style="text-align:left;">
+0.09769
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell differentiation (M14)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0106900
+</td>
+<td style="text-align:left;">
+0.09769
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+lysosomal/endosomal proteins (M139)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0122300
+</td>
+<td style="text-align:left;">
+0.10810
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Naive B cell surface signature (S8)
+</td>
+<td style="text-align:left;">
+24
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0126800
+</td>
+<td style="text-align:left;">
+0.10840
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M177.1)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0143200
+</td>
+<td style="text-align:left;">
+0.11850
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+targets of FOSL1/2 (M0)
+</td>
+<td style="text-align:left;">
+7
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0148800
+</td>
+<td style="text-align:left;">
+0.11950
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cytokines - recepters cluster (M115)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0161800
+</td>
+<td style="text-align:left;">
+0.12610
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+MHC-TLR7-TLR8 cluster (M146)
+</td>
+<td style="text-align:left;">
+16
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0175100
+</td>
+<td style="text-align:left;">
+0.13250
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M131)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0184200
+</td>
+<td style="text-align:left;">
+0.13560
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+IL2, IL7, TCR network (M65)
+</td>
+<td style="text-align:left;">
+9
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0198700
+</td>
+<td style="text-align:left;">
+0.13630
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+platelet activation (I) (M32.0)
+</td>
+<td style="text-align:left;">
+20
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0201900
+</td>
+<td style="text-align:left;">
+0.13630
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+respiratory electron transport chain (mitochondrion) (M238)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0212000
+</td>
+<td style="text-align:left;">
+0.13630
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+translation initiation factor 3 complex (M245)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0217700
+</td>
+<td style="text-align:left;">
+0.13630
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+platelet activation and degranulation (M85)
+</td>
+<td style="text-align:left;">
+8
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0218600
+</td>
+<td style="text-align:left;">
+0.13630
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TLR8-BAFF network (M25)
+</td>
+<td style="text-align:left;">
+8
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0219300
+</td>
+<td style="text-align:left;">
+0.13630
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell surface, activation (M36)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0221100
+</td>
+<td style="text-align:left;">
+0.13630
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+CD28 costimulation (M12)
+</td>
+<td style="text-align:left;">
+9
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0234900
+</td>
+<td style="text-align:left;">
+0.14000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell junction (GO) (M4.13)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0237800
+</td>
+<td style="text-align:left;">
+0.14000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in activated dendritic cells/monocytes (M64)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0274000
+</td>
+<td style="text-align:left;">
+0.15340
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in B cells (I) (M47.0)
+</td>
+<td style="text-align:left;">
+39
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0276400
+</td>
+<td style="text-align:left;">
+0.15340
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M66)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0277800
+</td>
+<td style="text-align:left;">
+0.15340
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M151)
+</td>
+<td style="text-align:left;">
+6
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0293200
+</td>
+<td style="text-align:left;">
+0.15850
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+chemokine cluster (I) (M27.0)
+</td>
+<td style="text-align:left;">
+20
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0315800
+</td>
+<td style="text-align:left;">
+0.16740
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M32.5)
+</td>
+<td style="text-align:left;">
+14
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0365200
+</td>
+<td style="text-align:left;">
+0.18970
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="disease-significant-vaccine-gene-sets-1" class="section level3">
+<h3><span class="header-section-number">1.2.3</span> disease: significant vaccine gene-sets</h3>
+<div style="border: 1px solid #ddd; padding: 5px; overflow-y: scroll; height:300px; ">
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:left;">
+geneset
+</th>
+<th style="text-align:left;">
+NGenes
+</th>
+<th style="text-align:left;">
+Direction
+</th>
+<th style="text-align:left;">
+PValue
+</th>
+<th style="text-align:left;">
+FDR
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+enriched in naive and memory B cells (M83)
+</td>
+<td style="text-align:left;">
+9
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.001232
+</td>
+<td style="text-align:left;">
+0.01725
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in B cells (II) (M47.1)
+</td>
+<td style="text-align:left;">
+32
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.010490
+</td>
+<td style="text-align:left;">
+0.07340
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in B cells (I) (M47.0)
+</td>
+<td style="text-align:left;">
+39
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.027640
+</td>
+<td style="text-align:left;">
+0.12900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in B cells (VI) (M69)
+</td>
+<td style="text-align:left;">
+18
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.061420
+</td>
+<td style="text-align:left;">
+0.21500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M72.1)
+</td>
+<td style="text-align:left;">
+16
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.215000
+</td>
+<td style="text-align:left;">
+0.60200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+mitosis (TF motif CCAATNNSNNNGCG) (M169)
+</td>
+<td style="text-align:left;">
+14
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.268800
+</td>
+<td style="text-align:left;">
+0.62730
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+purine nucleotide biosynthesis (M212)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.385600
+</td>
+<td style="text-align:left;">
+0.66820
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+platelet activation (II) (M32.1)
+</td>
+<td style="text-align:left;">
+20
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.416400
+</td>
+<td style="text-align:left;">
+0.66820
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched for TF motif PAX3 (M179)
+</td>
+<td style="text-align:left;">
+8
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.441100
+</td>
+<td style="text-align:left;">
+0.66820
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M72.2)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.485100
+</td>
+<td style="text-align:left;">
+0.66820
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (source: B cells) (M152.0)
+</td>
+<td style="text-align:left;">
+6
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.548100
+</td>
+<td style="text-align:left;">
+0.66820
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (source: memory B cells) (M152.2)
+</td>
+<td style="text-align:left;">
+6
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.572700
+</td>
+<td style="text-align:left;">
+0.66820
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell division - E2F transcription network (M4.8)
+</td>
+<td style="text-align:left;">
+14
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.689900
+</td>
+<td style="text-align:left;">
+0.74300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+chaperonin mediated protein folding (I) (M204.0)
+</td>
+<td style="text-align:left;">
+14
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.949300
+</td>
+<td style="text-align:left;">
+0.94930
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div id="old-age-group" class="section level2 tabset tabset-fade tabset-pills">
+<h2><span class="header-section-number">1.3</span> old age group</h2>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<caption>
+vaccine sample size
+</caption>
+<thead>
+<tr>
+<th style="border-bottom:hidden" colspan="1">
+</th>
+<th style="border-bottom:hidden" colspan="1">
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+vaccine
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+case
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+age
+</div>
+</th>
+</tr>
+<tr>
+<th style="text-align:left;">
+</th>
+<th style="text-align:center;">
+total
+</th>
+<th style="text-align:center;">
+comparator
+</th>
+<th style="text-align:center;">
+rtss
+</th>
+<th style="text-align:center;">
+control
+</th>
+<th style="text-align:center;">
+case
+</th>
+<th style="text-align:center;">
+neither
+</th>
+<th style="text-align:center;">
+young
+</th>
+<th style="text-align:center;">
+old
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+dmso
+</td>
+<td style="text-align:center;">
+219
+</td>
+<td style="text-align:center;">
+81
+</td>
+<td style="text-align:center;">
+138
+</td>
+<td style="text-align:center;">
+83
+</td>
+<td style="text-align:center;">
+35
+</td>
+<td style="text-align:center;">
+101
+</td>
+<td style="text-align:center;">
+0
+</td>
+<td style="text-align:center;">
+219
+</td>
+</tr>
+</tbody>
+</table>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<caption>
+disease sample size
+</caption>
+<thead>
+<tr>
+<th style="border-bottom:hidden" colspan="1">
+</th>
+<th style="border-bottom:hidden" colspan="1">
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+vaccine
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+case
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+age
+</div>
+</th>
+</tr>
+<tr>
+<th style="text-align:left;">
+</th>
+<th style="text-align:center;">
+total
+</th>
+<th style="text-align:center;">
+comparator
+</th>
+<th style="text-align:center;">
+rtss
+</th>
+<th style="text-align:center;">
+control
+</th>
+<th style="text-align:center;">
+case
+</th>
+<th style="text-align:center;">
+young
+</th>
+<th style="text-align:center;">
+old
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+dmso
+</td>
+<td style="text-align:center;">
+69
+</td>
+<td style="text-align:center;">
+0
+</td>
+<td style="text-align:center;">
+69
+</td>
+<td style="text-align:center;">
+51
+</td>
+<td style="text-align:center;">
+18
+</td>
+<td style="text-align:center;">
+0
+</td>
+<td style="text-align:center;">
+69
+</td>
+</tr>
+</tbody>
+</table>
+<div id="vaccine-2" class="section level3">
+<h3><span class="header-section-number">1.3.1</span> vaccine</h3>
+<div style="border: 1px solid #ddd; padding: 5px; overflow-y: scroll; height:600px; ">
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:left;">
+geneset
+</th>
+<th style="text-align:left;">
+NGenes
+</th>
+<th style="text-align:left;">
+Direction
+</th>
+<th style="text-align:left;">
+PValue
+</th>
+<th style="text-align:left;">
+FDR
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+enriched in NK cells (I) (M7.2)
+</td>
+<td style="text-align:left;">
+45
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0000007
+</td>
+<td style="text-align:left;">
+0.0000989
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in T cells (I) (M7.0)
+</td>
+<td style="text-align:left;">
+56
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0000007
+</td>
+<td style="text-align:left;">
+0.0000989
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M72.0)
+</td>
+<td style="text-align:left;">
+21
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0000017
+</td>
+<td style="text-align:left;">
+0.0001522
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M174)
+</td>
+<td style="text-align:left;">
+22
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0000072
+</td>
+<td style="text-align:left;">
+0.0004799
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M203)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0000111
+</td>
+<td style="text-align:left;">
+0.0005877
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M72.1)
+</td>
+<td style="text-align:left;">
+16
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0000562
+</td>
+<td style="text-align:left;">
+0.0024800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched for ubiquitination (M138)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0001071
+</td>
+<td style="text-align:left;">
+0.0040550
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M72.2)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0002830
+</td>
+<td style="text-align:left;">
+0.0093740
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+respiratory electron transport chain (mitochondrion) (M238)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0004733
+</td>
+<td style="text-align:left;">
+0.0129400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M242)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0004882
+</td>
+<td style="text-align:left;">
+0.0129400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+intracellular transport (M147)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0006357
+</td>
+<td style="text-align:left;">
+0.0142800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell activation (III) (M7.4)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0006464
+</td>
+<td style="text-align:left;">
+0.0142800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M137)
+</td>
+<td style="text-align:left;">
+15
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0009625
+</td>
+<td style="text-align:left;">
+0.0192300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+B cell surface signature (S2)
+</td>
+<td style="text-align:left;">
+70
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0010460
+</td>
+<td style="text-align:left;">
+0.0192300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M185)
+</td>
+<td style="text-align:left;">
+14
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0011720
+</td>
+<td style="text-align:left;">
+0.0192300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+regulation of transcription, transcription factors (M213)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0011950
+</td>
+<td style="text-align:left;">
+0.0192300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M205)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0012340
+</td>
+<td style="text-align:left;">
+0.0192300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+immune activation - generic cluster (M37.0)
+</td>
+<td style="text-align:left;">
+210
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0013790
+</td>
+<td style="text-align:left;">
+0.0197600
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+respiratory electron transport chain (mitochondrion) (M219)
+</td>
+<td style="text-align:left;">
+18
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0014910
+</td>
+<td style="text-align:left;">
+0.0197600
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+transmembrane transport (I) (M87)
+</td>
+<td style="text-align:left;">
+19
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0014920
+</td>
+<td style="text-align:left;">
+0.0197600
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M141)
+</td>
+<td style="text-align:left;">
+7
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0016410
+</td>
+<td style="text-align:left;">
+0.0207100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell cycle, ATP binding (M144)
+</td>
+<td style="text-align:left;">
+16
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0018500
+</td>
+<td style="text-align:left;">
+0.0211800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M229)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0018530
+</td>
+<td style="text-align:left;">
+0.0211800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M211)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0019750
+</td>
+<td style="text-align:left;">
+0.0211800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M194)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0019980
+</td>
+<td style="text-align:left;">
+0.0211800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+complement activation (I) (M112.0)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0020910
+</td>
+<td style="text-align:left;">
+0.0213200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+respiratory electron transport chain (mitochondrion) (M216)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0022030
+</td>
+<td style="text-align:left;">
+0.0216200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+leukocyte migration (M88.0)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0029130
+</td>
+<td style="text-align:left;">
+0.0274300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched for TF motif PAX3 (M179)
+</td>
+<td style="text-align:left;">
+8
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0031760
+</td>
+<td style="text-align:left;">
+0.0274300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M180)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0032570
+</td>
+<td style="text-align:left;">
+0.0274300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in monocytes (II) (M11.0)
+</td>
+<td style="text-align:left;">
+146
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0033310
+</td>
+<td style="text-align:left;">
+0.0274300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell activation (I) (M7.1)
+</td>
+<td style="text-align:left;">
+47
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0034110
+</td>
+<td style="text-align:left;">
+0.0274300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TLR and inflammatory signaling (M16)
+</td>
+<td style="text-align:left;">
+34
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0034160
+</td>
+<td style="text-align:left;">
+0.0274300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+chaperonin mediated protein folding (II) (M204.1)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0038480
+</td>
+<td style="text-align:left;">
+0.0299900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+spliceosome (M250)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0044160
+</td>
+<td style="text-align:left;">
+0.0334400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+respiratory electron transport chain (mitochondrion) (M231)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0052420
+</td>
+<td style="text-align:left;">
+0.0385800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell differentiation via ITK and PKC (M18)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0058640
+</td>
+<td style="text-align:left;">
+0.0420000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M188)
+</td>
+<td style="text-align:left;">
+9
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0070810
+</td>
+<td style="text-align:left;">
+0.0484500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+myeloid cell enriched receptors and transporters (M4.3)
+</td>
+<td style="text-align:left;">
+26
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0071300
+</td>
+<td style="text-align:left;">
+0.0484500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in neutrophils (I) (M37.1)
+</td>
+<td style="text-align:left;">
+29
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0080630
+</td>
+<td style="text-align:left;">
+0.0534200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+chaperonin mediated protein folding (I) (M204.0)
+</td>
+<td style="text-align:left;">
+14
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0088570
+</td>
+<td style="text-align:left;">
+0.0553600
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+signaling in T cells (II) (M35.1)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0088990
+</td>
+<td style="text-align:left;">
+0.0553600
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cytoskeletal remodeling (M32.8)
+</td>
+<td style="text-align:left;">
+9
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0089830
+</td>
+<td style="text-align:left;">
+0.0553600
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+leukocyte activation and migration (M45)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0095610
+</td>
+<td style="text-align:left;">
+0.0565800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell differentiation (M14)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0096080
+</td>
+<td style="text-align:left;">
+0.0565800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell adhesion (GO) (M117)
+</td>
+<td style="text-align:left;">
+20
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0098760
+</td>
+<td style="text-align:left;">
+0.0568900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+translation initiation factor 3 complex (M245)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0105300
+</td>
+<td style="text-align:left;">
+0.0593900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+leukocyte differentiation (M160)
+</td>
+<td style="text-align:left;">
+14
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0107700
+</td>
+<td style="text-align:left;">
+0.0594700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+platelet activation (I) (M32.0)
+</td>
+<td style="text-align:left;">
+20
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0121700
+</td>
+<td style="text-align:left;">
+0.0658200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell division (stimulated CD4+ T cells) (M46)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0131500
+</td>
+<td style="text-align:left;">
+0.0697100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (source: B cells) (M152.0)
+</td>
+<td style="text-align:left;">
+6
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0137200
+</td>
+<td style="text-align:left;">
+0.0713100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in NK cells (III) (M157)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0178700
+</td>
+<td style="text-align:left;">
+0.0910700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+proteasome (M226)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0192900
+</td>
+<td style="text-align:left;">
+0.0932200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Monocyte surface signature (S4)
+</td>
+<td style="text-align:left;">
+69
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0193400
+</td>
+<td style="text-align:left;">
+0.0932200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+lysosome (M209)
+</td>
+<td style="text-align:left;">
+7
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0195400
+</td>
+<td style="text-align:left;">
+0.0932200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Plasma cell surface signature (S3)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0198800
+</td>
+<td style="text-align:left;">
+0.0932200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M128)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0202500
+</td>
+<td style="text-align:left;">
+0.0932200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in membrane proteins (M124)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0204000
+</td>
+<td style="text-align:left;">
+0.0932200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Activated (LPS) dendritic cell surface signature (S11)
+</td>
+<td style="text-align:left;">
+28
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0208900
+</td>
+<td style="text-align:left;">
+0.0938500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+CORO1A-DEF6 network (II) (M32.4)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0219300
+</td>
+<td style="text-align:left;">
+0.0968600
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DC surface signature (S5)
+</td>
+<td style="text-align:left;">
+54
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0224000
+</td>
+<td style="text-align:left;">
+0.0973000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+translation initiation (M227)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0239100
+</td>
+<td style="text-align:left;">
+0.1009000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Naive B cell surface signature (S8)
+</td>
+<td style="text-align:left;">
+24
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0239900
+</td>
+<td style="text-align:left;">
+0.1009000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in NK cells (II) (M61.0)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0244300
+</td>
+<td style="text-align:left;">
+0.1012000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in myeloid cells and monocytes (M81)
+</td>
+<td style="text-align:left;">
+23
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0250700
+</td>
+<td style="text-align:left;">
+0.1022000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+signaling in T cells (I) (M35.0)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0259700
+</td>
+<td style="text-align:left;">
+0.1043000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell cycle and transcription (M4.0)
+</td>
+<td style="text-align:left;">
+226
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0299600
+</td>
+<td style="text-align:left;">
+0.1185000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell cycle (II) (M4.10)
+</td>
+<td style="text-align:left;">
+7
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0304500
+</td>
+<td style="text-align:left;">
+0.1187000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+CORO1A-DEF6 network (I) (M32.2)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0311300
+</td>
+<td style="text-align:left;">
+0.1195000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M105)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0318000
+</td>
+<td style="text-align:left;">
+0.1204000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+G protein coupled receptors cluster (M155)
+</td>
+<td style="text-align:left;">
+9
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0339600
+</td>
+<td style="text-align:left;">
+0.1268000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M153)
+</td>
+<td style="text-align:left;">
+15
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0366600
+</td>
+<td style="text-align:left;">
+0.1349000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+glycerophospholipid metabolism (M114.1)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0405500
+</td>
+<td style="text-align:left;">
+0.1472000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M201)
+</td>
+<td style="text-align:left;">
+14
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0428100
+</td>
+<td style="text-align:left;">
+0.1533000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+platelet activation (II) (M32.1)
+</td>
+<td style="text-align:left;">
+20
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0439800
+</td>
+<td style="text-align:left;">
+0.1554000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+small GTPase mediated signal transduction (M215)
+</td>
+<td style="text-align:left;">
+16
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0446500
+</td>
+<td style="text-align:left;">
+0.1557000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M148)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0476900
+</td>
+<td style="text-align:left;">
+0.1641000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+E2F transcription factor network (M8)
+</td>
+<td style="text-align:left;">
+7
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0499600
+</td>
+<td style="text-align:left;">
+0.1678000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in monocytes (IV) (M118.0)
+</td>
+<td style="text-align:left;">
+48
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0506100
+</td>
+<td style="text-align:left;">
+0.1678000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M177.1)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0506600
+</td>
+<td style="text-align:left;">
+0.1678000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M151)
+</td>
+<td style="text-align:left;">
+6
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0532400
+</td>
+<td style="text-align:left;">
+0.1742000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+transcription elongation, RNA polymerase II (M234)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0568300
+</td>
+<td style="text-align:left;">
+0.1837000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell signaling and costimulation (M44)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0577100
+</td>
+<td style="text-align:left;">
+0.1843000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+CD1 and other DC receptors (M50)
+</td>
+<td style="text-align:left;">
+6
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0590600
+</td>
+<td style="text-align:left;">
+0.1863000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+KLF12 targets network (M32.3)
+</td>
+<td style="text-align:left;">
+15
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0608000
+</td>
+<td style="text-align:left;">
+0.1875000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+heme biosynthesis (II) (M222)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0608400
+</td>
+<td style="text-align:left;">
+0.1875000
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="disease-2" class="section level3">
+<h3><span class="header-section-number">1.3.2</span> disease</h3>
+<div style="border: 1px solid #ddd; padding: 5px; overflow-y: scroll; height:600px; ">
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:left;">
+geneset
+</th>
+<th style="text-align:left;">
+NGenes
+</th>
+<th style="text-align:left;">
+Direction
+</th>
+<th style="text-align:left;">
+PValue
+</th>
+<th style="text-align:left;">
+FDR
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+IL2, IL7, TCR network (M65)
+</td>
+<td style="text-align:left;">
+9
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0004203
+</td>
+<td style="text-align:left;">
+0.09472
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in T cells (I) (M7.0)
+</td>
+<td style="text-align:left;">
+56
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0007149
+</td>
+<td style="text-align:left;">
+0.09472
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+translation initiation factor 3 complex (M245)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0015880
+</td>
+<td style="text-align:left;">
+0.13490
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+respiratory electron transport chain (mitochondrion) (M219)
+</td>
+<td style="text-align:left;">
+18
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0020360
+</td>
+<td style="text-align:left;">
+0.13490
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+respiratory electron transport chain (mitochondrion) (M238)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0030530
+</td>
+<td style="text-align:left;">
+0.15590
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell activation and signaling (M5.1)
+</td>
+<td style="text-align:left;">
+22
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0042380
+</td>
+<td style="text-align:left;">
+0.15590
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in T cells (II) (M223)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0044610
+</td>
+<td style="text-align:left;">
+0.15590
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell differentiation via ITK and PKC (M18)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0049570
+</td>
+<td style="text-align:left;">
+0.15590
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell differentiation (Th2) (M19)
+</td>
+<td style="text-align:left;">
+15
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0052940
+</td>
+<td style="text-align:left;">
+0.15590
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="disease-significant-vaccine-gene-sets-2" class="section level3">
+<h3><span class="header-section-number">1.3.3</span> disease: significant vaccine gene-sets</h3>
+<div style="border: 1px solid #ddd; padding: 5px; overflow-y: scroll; height:600px; ">
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<thead>
+<tr>
+<th style="text-align:left;">
+geneset
+</th>
+<th style="text-align:left;">
+NGenes
+</th>
+<th style="text-align:left;">
+Direction
+</th>
+<th style="text-align:left;">
+PValue
+</th>
+<th style="text-align:left;">
+FDR
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+enriched in T cells (I) (M7.0)
+</td>
+<td style="text-align:left;">
+56
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0007149
+</td>
+<td style="text-align:left;">
+0.05837
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+translation initiation factor 3 complex (M245)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0015880
+</td>
+<td style="text-align:left;">
+0.05837
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+respiratory electron transport chain (mitochondrion) (M219)
+</td>
+<td style="text-align:left;">
+18
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0020360
+</td>
+<td style="text-align:left;">
+0.05837
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+respiratory electron transport chain (mitochondrion) (M238)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0030530
+</td>
+<td style="text-align:left;">
+0.06565
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell differentiation via ITK and PKC (M18)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0049570
+</td>
+<td style="text-align:left;">
+0.08526
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+heme biosynthesis (II) (M222)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0092670
+</td>
+<td style="text-align:left;">
+0.13280
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+chaperonin mediated protein folding (I) (M204.0)
+</td>
+<td style="text-align:left;">
+14
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0140300
+</td>
+<td style="text-align:left;">
+0.17240
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell adhesion (GO) (M117)
+</td>
+<td style="text-align:left;">
+20
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0195300
+</td>
+<td style="text-align:left;">
+0.18830
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell activation (III) (M7.4)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0207800
+</td>
+<td style="text-align:left;">
+0.18830
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell signaling and costimulation (M44)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0219000
+</td>
+<td style="text-align:left;">
+0.18830
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+myeloid cell enriched receptors and transporters (M4.3)
+</td>
+<td style="text-align:left;">
+26
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0254500
+</td>
+<td style="text-align:left;">
+0.19320
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+respiratory electron transport chain (mitochondrion) (M231)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0278400
+</td>
+<td style="text-align:left;">
+0.19320
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+platelet activation (I) (M32.0)
+</td>
+<td style="text-align:left;">
+20
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0301900
+</td>
+<td style="text-align:left;">
+0.19320
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+E2F transcription factor network (M8)
+</td>
+<td style="text-align:left;">
+7
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0314600
+</td>
+<td style="text-align:left;">
+0.19320
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+respiratory electron transport chain (mitochondrion) (M216)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0491100
+</td>
+<td style="text-align:left;">
+0.27120
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+B cell surface signature (S2)
+</td>
+<td style="text-align:left;">
+70
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0530800
+</td>
+<td style="text-align:left;">
+0.27120
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M211)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0536200
+</td>
+<td style="text-align:left;">
+0.27120
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell differentiation (M14)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0719400
+</td>
+<td style="text-align:left;">
+0.33330
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T cell activation (I) (M7.1)
+</td>
+<td style="text-align:left;">
+47
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0736300
+</td>
+<td style="text-align:left;">
+0.33330
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+transcription elongation, RNA polymerase II (M234)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.0815600
+</td>
+<td style="text-align:left;">
+0.35070
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+transmembrane transport (I) (M87)
+</td>
+<td style="text-align:left;">
+19
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.0930300
+</td>
+<td style="text-align:left;">
+0.36410
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M174)
+</td>
+<td style="text-align:left;">
+22
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.1019000
+</td>
+<td style="text-align:left;">
+0.36410
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (source: B cells) (M152.0)
+</td>
+<td style="text-align:left;">
+6
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.1033000
+</td>
+<td style="text-align:left;">
+0.36410
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M141)
+</td>
+<td style="text-align:left;">
+7
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.1037000
+</td>
+<td style="text-align:left;">
+0.36410
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+platelet activation (II) (M32.1)
+</td>
+<td style="text-align:left;">
+20
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.1058000
+</td>
+<td style="text-align:left;">
+0.36410
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M205)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.1212000
+</td>
+<td style="text-align:left;">
+0.40100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched for TF motif PAX3 (M179)
+</td>
+<td style="text-align:left;">
+8
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.1316000
+</td>
+<td style="text-align:left;">
+0.41910
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Naive B cell surface signature (S8)
+</td>
+<td style="text-align:left;">
+24
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.1563000
+</td>
+<td style="text-align:left;">
+0.45300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M128)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.1584000
+</td>
+<td style="text-align:left;">
+0.45300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+spliceosome (M250)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.1596000
+</td>
+<td style="text-align:left;">
+0.45300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell cycle and transcription (M4.0)
+</td>
+<td style="text-align:left;">
+226
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.1633000
+</td>
+<td style="text-align:left;">
+0.45300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+signaling in T cells (I) (M35.0)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.1715000
+</td>
+<td style="text-align:left;">
+0.46100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in neutrophils (I) (M37.1)
+</td>
+<td style="text-align:left;">
+29
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.1785000
+</td>
+<td style="text-align:left;">
+0.46530
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in monocytes (II) (M11.0)
+</td>
+<td style="text-align:left;">
+146
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.1876000
+</td>
+<td style="text-align:left;">
+0.47440
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M194)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.2086000
+</td>
+<td style="text-align:left;">
+0.51270
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M153)
+</td>
+<td style="text-align:left;">
+15
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.2216000
+</td>
+<td style="text-align:left;">
+0.52940
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell division (stimulated CD4+ T cells) (M46)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.2426000
+</td>
+<td style="text-align:left;">
+0.55050
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M148)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.2433000
+</td>
+<td style="text-align:left;">
+0.55050
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+glycerophospholipid metabolism (M114.1)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.2534000
+</td>
+<td style="text-align:left;">
+0.55890
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in membrane proteins (M124)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.2828000
+</td>
+<td style="text-align:left;">
+0.60800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+CD1 and other DC receptors (M50)
+</td>
+<td style="text-align:left;">
+6
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.3067000
+</td>
+<td style="text-align:left;">
+0.64340
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+KLF12 targets network (M32.3)
+</td>
+<td style="text-align:left;">
+15
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.3207000
+</td>
+<td style="text-align:left;">
+0.64620
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cytoskeletal remodeling (M32.8)
+</td>
+<td style="text-align:left;">
+9
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.3231000
+</td>
+<td style="text-align:left;">
+0.64620
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+lysosome (M209)
+</td>
+<td style="text-align:left;">
+7
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.3396000
+</td>
+<td style="text-align:left;">
+0.65770
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+CORO1A-DEF6 network (I) (M32.2)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.3442000
+</td>
+<td style="text-align:left;">
+0.65770
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+chaperonin mediated protein folding (II) (M204.1)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.3575000
+</td>
+<td style="text-align:left;">
+0.66840
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in NK cells (I) (M7.2)
+</td>
+<td style="text-align:left;">
+45
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.3828000
+</td>
+<td style="text-align:left;">
+0.67990
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M203)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.3845000
+</td>
+<td style="text-align:left;">
+0.67990
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in NK cells (II) (M61.0)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.3874000
+</td>
+<td style="text-align:left;">
+0.67990
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M188)
+</td>
+<td style="text-align:left;">
+9
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.4160000
+</td>
+<td style="text-align:left;">
+0.71550
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in monocytes (IV) (M118.0)
+</td>
+<td style="text-align:left;">
+48
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.4348000
+</td>
+<td style="text-align:left;">
+0.72410
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M229)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.4407000
+</td>
+<td style="text-align:left;">
+0.72410
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+leukocyte activation and migration (M45)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.4462000
+</td>
+<td style="text-align:left;">
+0.72410
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+regulation of transcription, transcription factors (M213)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.4595000
+</td>
+<td style="text-align:left;">
+0.73170
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M72.0)
+</td>
+<td style="text-align:left;">
+21
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.4739000
+</td>
+<td style="text-align:left;">
+0.74110
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+intracellular transport (M147)
+</td>
+<td style="text-align:left;">
+17
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.4907000
+</td>
+<td style="text-align:left;">
+0.74340
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in myeloid cells and monocytes (M81)
+</td>
+<td style="text-align:left;">
+23
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.4927000
+</td>
+<td style="text-align:left;">
+0.74340
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched for ubiquitination (M138)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.5099000
+</td>
+<td style="text-align:left;">
+0.75610
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+proteasome (M226)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.5881000
+</td>
+<td style="text-align:left;">
+0.84400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+immune activation - generic cluster (M37.0)
+</td>
+<td style="text-align:left;">
+210
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.5945000
+</td>
+<td style="text-align:left;">
+0.84400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M185)
+</td>
+<td style="text-align:left;">
+14
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.5986000
+</td>
+<td style="text-align:left;">
+0.84400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+enriched in NK cells (III) (M157)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.6239000
+</td>
+<td style="text-align:left;">
+0.85670
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+leukocyte migration (M88.0)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.6285000
+</td>
+<td style="text-align:left;">
+0.85670
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M177.1)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.6610000
+</td>
+<td style="text-align:left;">
+0.85670
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+small GTPase mediated signal transduction (M215)
+</td>
+<td style="text-align:left;">
+16
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.6668000
+</td>
+<td style="text-align:left;">
+0.85670
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M72.1)
+</td>
+<td style="text-align:left;">
+16
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.6669000
+</td>
+<td style="text-align:left;">
+0.85670
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M180)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.6702000
+</td>
+<td style="text-align:left;">
+0.85670
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+signaling in T cells (II) (M35.1)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.6808000
+</td>
+<td style="text-align:left;">
+0.85670
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Plasma cell surface signature (S3)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.6874000
+</td>
+<td style="text-align:left;">
+0.85670
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+translation initiation (M227)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.7039000
+</td>
+<td style="text-align:left;">
+0.86470
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DC surface signature (S5)
+</td>
+<td style="text-align:left;">
+54
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.7467000
+</td>
+<td style="text-align:left;">
+0.89740
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+complement activation (I) (M112.0)
+</td>
+<td style="text-align:left;">
+10
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.7513000
+</td>
+<td style="text-align:left;">
+0.89740
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Monocyte surface signature (S4)
+</td>
+<td style="text-align:left;">
+69
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.7663000
+</td>
+<td style="text-align:left;">
+0.89970
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell cycle (II) (M4.10)
+</td>
+<td style="text-align:left;">
+7
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.7843000
+</td>
+<td style="text-align:left;">
+0.89970
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TLR and inflammatory signaling (M16)
+</td>
+<td style="text-align:left;">
+34
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.7846000
+</td>
+<td style="text-align:left;">
+0.89970
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M105)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.8063000
+</td>
+<td style="text-align:left;">
+0.90350
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cell cycle, ATP binding (M144)
+</td>
+<td style="text-align:left;">
+16
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.8262000
+</td>
+<td style="text-align:left;">
+0.90350
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+CORO1A-DEF6 network (II) (M32.4)
+</td>
+<td style="text-align:left;">
+13
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.8362000
+</td>
+<td style="text-align:left;">
+0.90350
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M201)
+</td>
+<td style="text-align:left;">
+14
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.8370000
+</td>
+<td style="text-align:left;">
+0.90350
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M72.2)
+</td>
+<td style="text-align:left;">
+12
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.8405000
+</td>
+<td style="text-align:left;">
+0.90350
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+G protein coupled receptors cluster (M155)
+</td>
+<td style="text-align:left;">
+9
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.8728000
+</td>
+<td style="text-align:left;">
+0.92660
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+leukocyte differentiation (M160)
+</td>
+<td style="text-align:left;">
+14
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.8916000
+</td>
+<td style="text-align:left;">
+0.93510
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Activated (LPS) dendritic cell surface signature (S11)
+</td>
+<td style="text-align:left;">
+28
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.9200000
+</td>
+<td style="text-align:left;">
+0.93930
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M137)
+</td>
+<td style="text-align:left;">
+15
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.9236000
+</td>
+<td style="text-align:left;">
+0.93930
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M151)
+</td>
+<td style="text-align:left;">
+6
+</td>
+<td style="text-align:left;">
+Up
+</td>
+<td style="text-align:left;">
+0.9284000
+</td>
+<td style="text-align:left;">
+0.93930
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TBA (M242)
+</td>
+<td style="text-align:left;">
+11
+</td>
+<td style="text-align:left;">
+Down
+</td>
+<td style="text-align:left;">
+0.9407000
+</td>
+<td style="text-align:left;">
+0.94070
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+<div id="summary" class="section level1">
+<h1><span class="header-section-number">2</span> Summary</h1>
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; ">
+<caption>
+Number of significant gene-sets
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;">
+</th>
+<th style="text-align:center;">
+vaccine
+</th>
+<th style="text-align:center;">
+disease
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+both
+</td>
+<td style="text-align:center;">
+28
+</td>
+<td style="text-align:center;">
+2
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+young
+</td>
+<td style="text-align:center;">
+14
+</td>
+<td style="text-align:center;">
+51
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+old
+</td>
+<td style="text-align:center;">
+86
+</td>
+<td style="text-align:center;">
+9
+</td>
+</tr>
+</tbody>
+</table>
+<p></br></p>
+<div id="session-information" class="section level2">
+<h2><span class="header-section-number">2.1</span> Session information</h2>
+<p>R version 3.5.0 (2018-04-23) Platform: x86_64-pc-linux-gnu (64-bit) Running under: Ubuntu 14.04.5 LTS</p>
+<p>Matrix products: default BLAS/LAPACK: /app/easybuild/software/OpenBLAS/0.2.18-GCC-5.4.0-2.26-LAPACK-3.6.1/lib/libopenblas_prescottp-r0.2.18.so</p>
+<p>locale: [1] LC_CTYPE=en_US.UTF-8 LC_NUMERIC=C<br />
+[3] LC_TIME=en_US.UTF-8 LC_COLLATE=en_US.UTF-8<br />
+[5] LC_MONETARY=en_US.UTF-8 LC_MESSAGES=en_US.UTF-8<br />
+[7] LC_PAPER=en_US.UTF-8 LC_NAME=C<br />
+[9] LC_ADDRESS=C LC_TELEPHONE=C<br />
+[11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C</p>
+<p>attached base packages: [1] stats4 parallel stats graphics grDevices utils datasets [8] methods base</p>
+<p>other attached packages: [1] mal067data_1.0 kableExtra_1.0.1 here_0.1<br />
+[4] magrittr_1.5 forcats_0.3.0 stringr_1.4.0<br />
+[7] dplyr_0.7.99.9000 purrr_0.2.5 tidyr_0.8.0<br />
+[10] tibble_2.0.1 ggplot2_3.1.0 tidyverse_1.2.1<br />
+[13] limma_3.36.1 DT_0.5 GSEABase_1.42.0<br />
+[16] graph_1.58.0 annotate_1.58.0 XML_3.98-1.11<br />
+[19] AnnotationDbi_1.42.1 IRanges_2.14.6 S4Vectors_0.18.1<br />
+[22] Biobase_2.42.0 BiocGenerics_0.28.0 RNASeqUtilities_1.1 [25] readr_1.3.1 knitr_1.21</p>
+<p>loaded via a namespace (and not attached): [1] httr_1.4.0 jsonlite_1.6 bit64_0.9-7<br />
+[4] viridisLite_0.3.0 R.utils_2.7.0 modelr_0.1.1<br />
+[7] assertthat_0.2.0 highr_0.7 blob_1.1.1<br />
+[10] cellranger_1.1.0 yaml_2.2.0 pillar_1.3.1<br />
+[13] RSQLite_2.1.1 backports_1.1.2 lattice_0.20-35<br />
+[16] glue_1.3.0 digest_0.6.18 rvest_0.3.2<br />
+[19] colorspace_1.4-0 htmltools_0.3.6 R.oo_1.22.0<br />
+[22] plyr_1.8.4 pkgconfig_2.0.2 broom_0.5.1<br />
+[25] haven_2.0.0 xtable_1.8-3 scales_1.0.0<br />
+[28] webshot_0.5.1 whisker_0.3-2 git2r_0.24.0<br />
+[31] generics_0.0.2 withr_2.1.2 lazyeval_0.2.1<br />
+[34] cli_1.0.1 readxl_1.1.0 crayon_1.3.4<br />
+[37] memoise_1.1.0 evaluate_0.13 R.methodsS3_1.7.1 [40] nlme_3.1-137 xml2_1.2.0 tools_3.5.0<br />
+[43] hms_0.4.2 munsell_0.5.0 compiler_3.5.0<br />
+[46] rlang_0.3.1 grid_3.5.0 RCurl_1.95-4.10<br />
+[49] rstudioapi_0.9.0 htmlwidgets_1.3 bitops_1.0-6<br />
+[52] rmarkdown_1.11 gtable_0.2.0 DBI_1.0.0<br />
+[55] R6_2.4.0 lubridate_1.7.4 gridExtra_2.3<br />
+[58] bit_1.1-14 workflowr_1.1.1 rprojroot_1.3-2<br />
+[61] stringi_1.3.1 Rcpp_1.0.0 tidyselect_0.2.5 [64] xfun_0.5</p>
+</div>
+</div>
+
+<!-- Adjust MathJax settings so that all math formulae are shown using
+TeX fonts only; see
+http://docs.mathjax.org/en/latest/configuration.html.  This will make
+the presentation more consistent at the cost of the webpage sometimes
+taking slightly longer to load. Note that this only works because the
+footer is added to webpages before the MathJax javascript. -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
+</script>
+
+<hr>
+<p>
+  This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a>
+  analysis was created with
+  <a href="https://github.com/jdblischak/workflowr">workflowr</a> 1.1.1
+</p>
+<hr>
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
