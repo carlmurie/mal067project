@@ -16,5 +16,7 @@ output:
   workflowr::wflow_html:
     toc: true
     toc_float: true
-    theme: cosmo
+    number_sections: true
+    theme: lumen
     highlight: textmate
+

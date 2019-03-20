@@ -1,9 +1,74 @@
 ---
-title: "Home"
+title: "MAL067: RTS,S malaria vaccine study"
 site: workflowr::wflow_site
+author: "Carl Murie and Raphael Gottardo"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
   workflowr::wflow_html:
     toc: false
 ---
 
-Welcome to my research website.
+# Overview
+
+This project aims to understand characteristics of the RTS,S vaccine and identify collerates of vaccine efficacy (or more generally speaking clinical disease outcome) based on immunological assay data generated from MAL067. 
+
+
+**Primary analysis**  
+  
+1. Main effects: by stimulation and timepoint
+    + differences in vaccine (rts,s - comparator)
+    + differences in disease (case - control)
+    + look at disease results for all significant gene-sets from vaccine comparison
+2. Interaction effects: by timepoint
+    + differences in vaccine  (rts,s - comparator) vs stimulation (stim - dmso)
+    + differences in disease  (case - control) vs stimulation (stim - dmso)
+    + look at disease results for all significant gene-sets from vaccine comparison
+
+
+#Experimental Design
+
+###[Design](experimental_design.html)
+
+#Primary Analysis  
+  
+##GSEA  
+  
+###Main effects: vaccine and disease for each stimulation
+  
+####[DMSO: M0](primary_main_M0_DMSO.html)
+####[DMSO: M3](primary_main_M3_DMSO.html)  
+####[CSP: M0](primary_main_M0_CSP.html)
+####[CSP: M3](primary_main_M3_CSP.html)
+####[HBS: M0](primary_main_M0_HBS.html)
+####[HBS: M3](primary_main_M3_HBS.html)  
+  
+###Interaction effects: stimulation (stim - dmso) vs disease/vaccine  
+   
+####[CSP: M3](primary_interaction_M3_CSP.html)  
+####[HBS: M3](primary_interaction_M3_HBS.html)
+
+###Secondary  
+  
+####[GSEA: time*disease interaction group](secondary_DMSO_time_disease.html)  
+####[GSEA: vaccine*disease interaction for time-point M3](secondary_vaccine_disease_interaction.html)
+
+###Exploratory  
+  
+####[Faust moncyte analysis](secondary_faust.html)
+####[enriched moncytes II](exploratory_Enriched_Monocytes.html)
+####[monocyte/lymphocyte ratio disease prediction](exploratory_ML_ratio.html)
+####[cytokine stim/DMSO ratios disease prediction](exploratory_cytokine_rna.html)
+####[IAVI isotype disease prediction](exploratory_iavi_rna.html)
+####[CEVAC disease prediction](exploratory_cevac_rna.html)
+####[antibody disease prediction](exploratory_antibody.html)
+####[DeRosa cell subset frequencies disease and vaccine effects](exploratory_monocyte_derosa.html)  
+
+####[ICS CD4 CSP: correlation with RNASeq gene expression](exploratory_ICS_CD4_CSP.html)
+####[ICS CD4 HBS: correlation with RNASeq gene expression](exploratory_ICS_CD4_HBS.html)
+
+####[ICS CD8 CSP: correlation with RNASeq gene expression](exploratory_ICS_CD8_CSP.html)
+####[ICS CD8 HBS: correlation with RNASeq gene expression](exploratory_ICS_CD8_HBS.html)
+
+####[ICS CD4 magnitude difference (truncated): correlation with RNASeq gene expression](exploratory_ICS_Mag.html)
+
+
