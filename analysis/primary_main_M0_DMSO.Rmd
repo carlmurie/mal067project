@@ -76,7 +76,7 @@ btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
 # GSEA `r toupper(stim)`: disease main effects
 
 **disease linear model:** `r form_interact_dis`  
-**disease filtering   :** `r time`, case/control, rtss and comparator  
+**disease filtering   :** `r time`, case/control, rtss 
 
 ```{r disease_data}
 ## disease: select subset of expressionSet
@@ -118,6 +118,34 @@ cam_dis <- runGSEA(mal_dis,
                    coef="casecase")
 summary_tab <-  sum(cam_dis$FDR <= fdr_cut)
 ```
+
+###table
+
+```{r table}
+
+## reformat and recalculate scores
+cam_dis %>%
+  filter(FDR <= fdr_cut | FDR <= fdr_cut) %>%
+  filter(!grepl("TBA", geneset)) %>%
+  ##filter(grepl("monocyte", geneset)) %>%
+  mutate(PValue=signif(PValue, 3)) %>%
+  mutate(FDR=signif(FDR,3)) %>%
+  dplyr::select(-c(NGenes)) %>%
+  headerKable() %>%
+  row_spec(c(1,4,31), background = "yellow")
+
+if(FALSE) {
+  cam_dis %>%
+  filter(FDR <= fdr_cut | FDR <= fdr_cut) %>%
+  filter(!grepl("TBA", geneset)) %>%
+  filter(grepl("monocyte", geneset)) %>%
+  mutate(PValue=signif(PValue, 3)) %>%
+  mutate(FDR=signif(FDR,3)) %>%
+  dplyr::select(-c(NGenes)) %>%
+  headerKable()
+}
+```
+
 
 #Summary  
   

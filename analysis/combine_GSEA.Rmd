@@ -1,0 +1,280 @@
+---
+title: Combined Analysis
+subtitle:  mal067, Vahey, and Kazmin
+author: Carl Murie
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r load-packages, echo=FALSE, warning=FALSE, message=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message=FALSE)
+
+library(Biobase)
+library(tidyverse)
+library(data.table)
+library(here)
+library(RNASeqUtilities)
+library(DT)
+library(magrittr)
+library(readr)
+library(venn)
+library(heatmap3)
+```
+
+#Comparison of three RTS,S data sets  
+
+Three data sets will be compared:  
+  
+1. mal067 RTS,S RNASeq assay
+2. Expression of Genes Associated with Immunoproteaseome Processing of Major Histocompabtibility Complex Peptides is Indicative of Protection with Adjuvanated RTS,S Malaria Vaccine, Vahey et al. 2010 (microrarray assay)
+3. Systems analysis of protective immune responses to RTS,S malaria vaccination in humans, Kazmin et al. 2017 (microarray assay)  
+
+**Subjects**  
+  
+1. Mal067: Subjects were children (6w -17m) drawn from Bagamoyo or Manhica, Africa  
+  
+2. Vahey et al.: Subjects were vaccine naive and adults drawn from Walter Reed Army Institute of Research  
+  
+3. Kazmin et al.: Subjects were vaccine naive and adults drawn from Walter Reed Army Institute of Research  
+  
+**GSEA analysis** was applied at two timepoints:  
+  
+1. Baseline - before vaccination
+2. After complete vaccination treatment and challenge 
+  
+  + mal067: 3 months after baseline (~90 days) 
+  + Vahey et al: ( 5 days after challenge)
+  + Kazmin et al: 82 days after baseline (5 days after challenge)  
+  
+GSEA comparison was (NoProtection - Protection) or (case - control) 
+  
+Both age groups were combined for the mal067 analysis  
+  
+```{r load_data}
+pul  <- read_csv(here("data/Pulendran_GSEA_disease.csv"))
+vahey <- read_csv(here("data/Vahey_GSEA_disease.csv"))
+mal_m0 <- read_csv(here("output/dmso_M0_both_disease.csv"))
+mal_m3 <- read_csv(here("output/dmso_M3_both_disease.csv"))
+
+fdr_cut <- 0.2
+DO_VENN <- TRUE
+```
+
+FDR cutoff was <= `r fdr_cut`  
+  
+##Baseline  
+  
+```{r setup_m0}
+pul %>%
+  filter(visit=="D00") %>%
+  dplyr::select(-visit) %>%
+  mutate(assay="kazmin") ->
+  pul_m0
+
+vahey %>%
+  filter(time=="T0") %>%
+  dplyr::select(-time) %>%
+  mutate(assay="vahey") ->
+  vah_m0
+
+mal_m0 %<>%
+  mutate(assay="mal067")
+```
+
+```{r select_sigs_m0}
+pul_m0 %>%
+  filter(FDR <= fdr_cut) %$%
+  geneset ->
+pul_sigs
+
+vah_m0 %>%
+  filter(FDR <= fdr_cut) %$%
+  geneset ->
+vah_sigs
+
+mal_m0 %>%
+  filter(FDR <= fdr_cut) %$%
+  geneset ->
+  mal_sigs
+
+all_sets <- rbind(mal_m0, vah_m0, pul_m0)
+```
+
+###Venn diagram of overlap  
+  
+```{r venn_m0}
+venn(list(mal067=mal_sigs, vahey=vah_sigs, kazmin=pul_sigs),zcolor = "style")
+```
+
+###Heatmap of overlap  
+  
+```{r heat_M0}
+## get union of all pairwise significant intersections
+sig_union <- unique(c(intersect(mal_sigs, vah_sigs),
+                      intersect(mal_sigs, pul_sigs),
+                      intersect(vah_sigs, pul_sigs)))
+
+## get union and calculate signed log10 FDR
+all_sets %>%
+  filter(geneset %in% sig_union) %>%
+  mutate(sign = as.numeric(plyr::mapvalues(Direction, 
+                                           from=c("Up", "Down"), 
+                                           to=c(1, -1)))) %>%
+  mutate(FDR_sign = -log10(FDR)*sign) ->
+  all_sig
+
+dcast(all_sig, geneset~assay, value.var="FDR_sign") %>%
+ as_tibble() %>%
+  column_to_rownames("geneset") %>%
+  as.matrix() ->
+  heat_mat
+
+heatmap3(heat_mat, Rowv=TRUE, Colv=NA, scale="none", balanceColor=TRUE, 
+         cexRow=0.65 ,showRowDendro=FALSE, 
+         col=colorRampPalette(c("firebrick3", "white", "navy"))(1024))
+```
+  
+###Table  
+  
+```{r data_m0}
+all_sig %>%
+  dplyr::select(-c("sign", "FDR_sign")) %>%
+  datatable() %>%
+  formatRound(columns=c("PValue", "FDR"), digit=3)
+```
+  
+##After challenge  
+  
+```{r setup_m3}
+pul %>%
+  filter(visit=="D82") %>%
+  dplyr::select(-visit) %>%
+  mutate(assay="kazmin") ->
+  pul_m3
+
+vahey %>%
+  filter(time=="T5") %>%
+  dplyr::select(-time) %>%
+  mutate(assay="vahey") ->
+  vah_m3
+
+mal_m3 %<>%
+  mutate(assay="mal067")
+
+
+```
+
+```{r select_sigs}
+pul_m3 %>%
+  filter(FDR <= fdr_cut) %$%
+  geneset ->
+pul_sigs
+
+vah_m3 %>%
+  filter(FDR <= fdr_cut) %$%
+  geneset ->
+vah_sigs
+
+mal_m3 %>%
+  filter(FDR <= fdr_cut) %$%
+  geneset ->
+  mal_sigs
+
+all_sets <- rbind(mal_m3, vah_m3, pul_m3)
+```
+
+###Venn diagram of overlap  
+  
+```{r venn_m3, out.width='75%'}
+venn(list(mal067=mal_sigs, vahey=vah_sigs, kazmin=pul_sigs), zcolor = "style")
+
+```
+
+###Heatmap of overlap  
+  
+```{r heat_M3}
+## get union of all pairwise significant intersections
+sig_union <- unique(c(intersect(mal_sigs, vah_sigs),
+                      intersect(mal_sigs, pul_sigs),
+                      intersect(vah_sigs, pul_sigs)))
+
+## get union and calculate signed log10 FDR
+all_sets %>%
+  filter(geneset %in% sig_union) %>%
+  mutate(sign = as.numeric(plyr::mapvalues(Direction, 
+                                           from=c("Up", "Down"), 
+                                           to=c(1, -1)))) %>%
+  mutate(FDR_sign = -log10(FDR)*sign) ->
+  all_sig
+
+dcast(all_sig, geneset~assay, value.var="FDR_sign") %>%
+ as_tibble() %>%
+  column_to_rownames("geneset") %>%
+  as.matrix() ->
+  heat_mat
+
+##heat_mat[,1] <- -1*heat_mat[,1]
+
+heatmap3(heat_mat, Rowv=TRUE, Colv=NA, scale="none", balanceColor=TRUE, 
+         cexRow=0.65 ,showRowDendro=FALSE,
+         col=colorRampPalette(c("firebrick3", "white", "navy"))(1024))
+```
+ 
+###Heatmap diagram of Vayey vs Pulendran  
+  
+```{r vp}
+## get union of all pairwise significant intersections
+sig_union <- unique(union(vah_sigs, pul_sigs))
+
+## get union and calculate signed log10 FDR
+all_sets %>%
+  filter(geneset %in% sig_union) %>%
+  filter(assay != "mal067") %>%
+  mutate(sign = as.numeric(plyr::mapvalues(Direction, 
+                                           from=c("Up", "Down"), 
+                                           to=c(1, -1)))) %>%
+  mutate(FDR_sign = -log10(FDR)*sign) ->
+  all_sig
+
+dcast(all_sig, geneset~assay, value.var="FDR_sign") %>%
+ as_tibble() %>%
+  column_to_rownames("geneset") %>%
+  filter(!is.na(kazmin) & !is.na(vahey)) %>%
+  as.matrix() ->
+  heat_mat
+
+```
+  
+**signs are normal**  
+  
+```{r}
+heatmap3(heat_mat, Rowv=NA, Colv=NA, scale="none", balanceColor=TRUE, 
+         cexRow=0.65 ,showRowDendro=FALSE,
+         col=colorRampPalette(c("firebrick3", "white", "navy"))(1024))
+```
+
+**Kazmin signs are reversed**
+
+```{r}
+heat_mat[,1] <- -1*heat_mat[,1]
+
+heatmap3(heat_mat, Rowv=NA, Colv=NA, scale="none", balanceColor=TRUE, 
+         cexRow=0.65 ,showRowDendro=FALSE,
+         col=colorRampPalette(c("firebrick3", "white", "navy"))(1024))
+```
+
+  
+###Table  
+  
+```{r data_m3}
+all_sig %>%
+  dplyr::select(-c("sign", "FDR_sign")) %>%
+  datatable() %>%
+  formatRound(columns=c("PValue", "FDR"), digit=3)
+```
+ 

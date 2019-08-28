@@ -25,7 +25,9 @@ library(here)
 library(data.table)
 library(survival)   ## clogit
 library(GSEABase)
-library(MAL067Package)
+library(gridExtra)
+library(DT)
+library(htmltools)
 
 source(here("code", "mal_utilities.R"))
 ```
@@ -51,7 +53,8 @@ read_tsv(here::here("data/170830-RTSS case control phenotyping.txt"),
 dcast(flow1, formula="PTID+VISITNO~Lineage", value.var="Count") %>% 
   dplyr::rename(Intermediate=`CD14+CD16+ Intermediate Mono`,
                 Classical=`CD14+CD16- Classical Mono`,
-                Inflammatory=`CD14loCD16hi Inflammatory Mono`) ->
+                Inflammatory=`CD14loCD16hi Inflammatory Mono`) %>%
+  mutate(Sum = Intermediate+Classical+Inflammatory) ->
   flow
 
 ## get common data and remove duplicated sid in mal067_meta_flow
@@ -59,7 +62,7 @@ common <- intersect(flow$PTID, mal067_meta_flow$sid)
 mal067_meta_flow %>%
   filter(sid %in% common) %>%
   filter(!duplicated(sid)) %>%
-  dplyr::select(sid, case, sex, match) -> 
+  dplyr::select(sid, case, sex, match, vaccine) -> 
   mal_filtered
 
 num_na <- sum(is.na(mal_filtered$match))
@@ -70,21 +73,61 @@ dplyr::left_join(flow, mal_filtered, by=c("PTID"="sid")) %>%
   mutate(case_logit:=as.numeric(plyr::mapvalues(as.character(case),
                                           from=c("control","case"), 
                                           to=c(0,1)))) %>%
-  mutate(VISITNO=factor(VISITNO)) %>%
+  mutate(VISITNO=factor(VISITNO, levels=c("M0", "M3"))) %>%
   data.table() ->
   flow_dt
 
 ## calculate ratios
 flow_dt[, ml_ratio:=Classical/Lymphocytes]
-flow_dt[, ml_ratio_sum:=(Classical+Inflammatory+Intermediate)/Lymphocytes]
+flow_dt[, ml_ratio_flam:=Inflammatory/Lymphocytes]
+flow_dt[, ml_ratio_inter:=Intermediate/Lymphocytes]
+flow_dt[, ml_ratio_sum:=Sum/Lymphocytes]
+
+```
+
+```{r gsea}
+min_gene_set <- 5
+
+## set up GSEA analysis
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+```
+
+
+#Plot monocytes  
+
+The four cell subsets used in this analysis are:  
+
+`r headerKable(data.frame(subsets=unique(flow1$Lineage)))`  
+  
+  
+```{r plotty}
+
+mono_dt <- melt(flow_dt[,c(2:6,8,11)], 
+                id.vars=c("VISITNO", "case", "vaccine", "Lymphocytes"))
+mono_dt$variable <- factor(as.character(mono_dt$variable), 
+                           levels=c("Classical", "Intermediate", "Inflammatory"))
+ggplot(mono_dt, aes(x=variable, y=value, color=case)) + geom_boxplot() +
+  facet_wrap(~VISITNO+vaccine) + ylab("Frequency") + xlab("Monocyte type") +
+  ggtitle("Monocytes")
+
+mono_rat_dt <- melt(flow_dt[,c(2,8,11,13:15)], id.vars=c("VISITNO", "case", "vaccine"))
+mono_rat_dt$variable <- factor(as.character(mono_rat_dt$variable), 
+                           levels=c("ml_ratio", "ml_ratio_inter", "ml_ratio_flam"),
+                           labels=c("Classical", "Intermediate", "Inflammatory"))
+ggplot(mono_rat_dt, aes(x=variable, y=value, color=case)) + geom_boxplot() +
+  facet_wrap(~VISITNO+vaccine) + ylab("Frequency") + xlab("Monocyte type") +
+  ggtitle("Monocyte/Lymphocyte ratio")
+
+ggplot(mono_dt, aes(x=Lymphocytes, y=value)) + geom_point() + ylab("Frequency") +
+  geom_smooth(method="loess", se=FALSE, fullrange=FALSE, level=0.95) +
+  geom_smooth(method="lm", se=FALSE, fullrange=FALSE, level=0.95, col="red") +
+  facet_wrap(~VISITNO+variable, scales="free") 
 
 ```
 
 #Test monocyte/lymphocyte ratios for disease (case) prediction  
-  
-The four cell subsets used in this analysis are:  
-
-`r headerKable(data.frame(subsets=unique(flow1$Lineage)))`  
   
 clogit regression will be applied with the following formula:  
   
@@ -97,37 +140,436 @@ case ~ ml_ratio + sex + strata(match)
 Samples for each cell subset.  
   
 ```{r samples}
-countSampleSizes(flow_dt, "VISITNO", c("sex", "case")) %>%
-headerKable(labels=c("gender", "disease"), levels=c(2,2))
+countSampleSizes(flow_dt, "VISITNO", c("vaccine", "sex", "case")) %>%
+headerKable(labels=c("vaccine", "gender", "disease"), levels=c(2,2,2))
 ```
 
 
-##Classical Monocyte/Lymphocytes
+```{r function}
 
-```{r class}
+myLogit <- function(flow=flow_dt[vaccine=="rtss"]) {
+  
+    logit_ratio_class <- flow[,summary(clogit(case_logit~ml_ratio+sex+strata(match)))$coefficients["ml_ratio", 5], by=VISITNO]
+    
+    logit_ratio_flame <- flow[,summary(clogit(case_logit~ml_ratio_flam+sex+strata(match)))$coefficients["ml_ratio_flam", 5], by=VISITNO]
+    
+    logit_ratio_inter <- flow[,summary(clogit(case_logit~ml_ratio_inter+sex+strata(match)))$coefficients["ml_ratio_inter", 5], by=VISITNO]
+    
+    logit_ratio_sum <- flow[,summary(clogit(case_logit~ml_ratio_sum+sex+strata(match)))$coefficients["ml_ratio_sum", 5], by=VISITNO]
+    
+    logit_class <- flow[,summary(clogit(case_logit~Classical+sex+strata(match)))$coefficients["Classical", 5], by=VISITNO]
+    
+    logit_flame <- flow[,summary(clogit(case_logit~Inflammatory+sex+strata(match)))$coefficients["Inflammatory", 5], by=VISITNO]
+    
+    logit_inter <- flow[,summary(clogit(case_logit~Intermediate+sex+strata(match)))$coefficients["Intermediate", 5], by=VISITNO]
+    
+    logit_sum <- flow[,summary(clogit(case_logit~Sum+sex+strata(match)))$coefficients["Sum", 5], by=VISITNO]
+    
+    rat_tab <- cbind(logit_ratio_sum, 
+                     logit_ratio_class[,2], 
+                     logit_ratio_flame[,2], 
+                     logit_ratio_inter[,2])
+    colnames(rat_tab) <- c("visit", "Sum", "Classical", "Inflammatory", "Intermediate")
+    
+    
+    print(headerKable(rat_tab[2:1,], title="ratios: monocyte/Lymphocyte"))
+    
+    g1 <- ggplot(flow, aes(x=case, y=ml_ratio_flam, color=case)) + geom_boxplot() +
+      facet_wrap(~VISITNO) + xlab("inflammatory/lymphocyte ratio")
+    
+    
+    main_tab <- cbind(logit_sum,
+                     logit_class[,2],
+                     logit_flame[,2], 
+                     logit_inter[,2])
+    colnames(main_tab) <- c("visit", "Sum", "Classical", "Inflammatory", "Intermediate")
+    print(headerKable(main_tab[2:1,], title="monocytes", digitts=3))
+    
+    g2 <- ggplot(flow, aes(x=case, y=Inflammatory, color=case)) + geom_boxplot() +
+      facet_wrap(~VISITNO) 
+    
+    grid.arrange(g1,g2, nrow=1)
 
-logit_pvals <- flow_dt[,summary(clogit(case_logit~ml_ratio+sex+strata(match)))$coefficients["ml_ratio", 5], by=VISITNO]
+}
 
-colnames(logit_pvals) <- c("visit", "p-value")
-headerKable(logit_pvals)
+```
 
-ggplot(flow_dt, aes(x=case, y=ml_ratio, color=case)) + geom_boxplot() +
-  facet_wrap(~VISITNO)
+##Disease Prediction: Monocyte/Lymphocytes  {.tabset .tabset-fade .tabset-pills}  
+  
+###RTS,S
+
+```{r rtss}
+
+myLogit(flow_dt[vaccine=="rtss"])
+
+```
+
+###Comparator
+
+```{r comp}
+
+myLogit(flow_dt[vaccine=="comparator"])
 
 ```
 
 
-##Classical+Intermediate+Inflammatory Monocyte/Lymphocytes
+###Both
 
-```{r class_sum}
+```{r both}
 
-logit_pvals <- flow_dt[,summary(clogit(case_logit~ml_ratio_sum+sex+strata(match)))$coefficients["ml_ratio_sum", 5], by=VISITNO]
-
-colnames(logit_pvals) <- c("visit", "p-value")
-headerKable(logit_pvals)
-
-ggplot(flow_dt, aes(x=case, y=ml_ratio, color=case)) + geom_boxplot() +
-  facet_wrap(~VISITNO)
+myLogit(flow_dt)
 
 ```
 
+##Gene expression association with monocyte frequencies 
+
+```{r deg_setup, eval=TRUE}
+
+## use previously voomed data
+mal067_voom$targets %>%
+  filter(stimulation=="dmso") %>%
+   filter(sid %in% unique(flow_dt$PTID)) %$%
+  col_id ->
+  cols
+rna_voom <- mal067_voom[,cols]
+
+## join with flow monocyte data
+rna_pheno <- dplyr::left_join(rna_voom$targets, flow_dt,
+                               by=c("sid"="PTID"))
+rna_voom$targets <- rna_pheno
+
+if(sum(colnames(rna_voom$E) != rna_voom$targets$col_id) !=0) {
+  stop("monocyte and rnaseq data not joined properly")
+}
+
+## collect un-voomed data
+pData(mal067_eset) %>%
+  filter(stimulation=="dmso") %>%
+   filter(sid %in% unique(flow_dt$PTID)) %$%
+  col_id ->
+  cols
+rna_eset <- mal067_eset[,cols]
+
+## join with flow monocyte data
+rna_pheno <- dplyr::left_join(pData(rna_eset), flow_dt,
+                               by=c("sid"="PTID"))
+pData(rna_eset) <- rna_pheno
+
+## select subset of results from 'topTable' results
+colInd <- c("logFC", "P.Value", "adj.P.Val")
+
+fdr_cut <- 0.2
+deg_cut <- 0.2
+
+```
+
+```{r deg_samples}
+countSampleSizes(pData(rna_eset), "visit", c("vaccine.x", "malaria_status", "age", "site")) %>%
+  headerKable(labels=c("vaccine", "malaria", "age", "site"), levels=c(2,2,2,2))
+```
+
+
+##GSEA: Monocyte/Lymphocytes  
+
+```{r gsea_function}
+
+doGSEA <- function(eset, monocyte="Classical", agey="both", visitt="M0",
+                  cutt=fdr_cut, btm=btm_ind) {
+  
+  eset <- eset[,eset$targets$visit==visitt]
+  
+  form <- paste("~plate + total_reads + age_weeks +", monocyte)
+  
+  design <- model.matrix(formula(form), eset$targets)
+
+  ##esett <- esett[,esett$visit==visitt]
+  ##design <- model.matrix(formula(form), pData(esett))
+  ##eset <- voom(esett, design=design)
+  
+ cam <- as_tibble(camera(eset, btm, design=design, contrast=monocyte),
+                        rownames="geneset")
+ cam %>%
+        filter(FDR < fdr_cut) %>%
+        mutate(FDR = signif(FDR, 4),
+               PValue = signif(PValue, 4)) ->
+  tmp_sig
+  summ <- nrow(tmp_sig)
+  
+  return(list(tab=tmp_sig, summ=summ))
+}
+
+```
+
+###Summary
+
+FDR cutoff is <= 0.2  
+  
+```{r run_gsea_M0}
+
+class <- doGSEA(rna_voom, monocyte="Classical", visitt="M0")
+flamm <- doGSEA(rna_voom, monocyte="Inflammatory", visitt="M0")
+inter <- doGSEA(rna_voom, monocyte="Intermediate", visitt="M0")
+summ <- doGSEA(rna_voom, monocyte="Sum", visitt="M0")
+
+class_m3 <- doGSEA(rna_voom, monocyte="Classical", visitt="M3")
+flamm_m3 <- doGSEA(rna_voom, monocyte="Inflammatory", visitt="M3")
+inter_m3 <- doGSEA(rna_voom, monocyte="Intermediate", visitt="M3")
+summ_m3 <- doGSEA(rna_voom, monocyte="Sum", visitt="M3")
+
+tab <- cbind(c(class$summ, flamm$summ, inter$summ, summ$summ),
+             c(class_m3$summ, flamm_m3$summ, inter_m3$summ, summ_m3$summ))
+dimnames(tab) <- list(c("Classical", "Inflammatory", "Intermediate", "Sum"),
+                      c("M0", "M3"))
+headerKable(tab)
+```
+
+###M0 {.tabset .tabset-fade .tabset-pills}  
+
+####Classical
+
+```{r M0_classical_gsea}
+if(class$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(class$tab)
+}
+```
+
+####Inflammatory
+
+```{r M0_inflammatory_gsea}
+if(flamm$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(flamm$tab)
+}
+```
+
+####Intermediate
+
+```{r M0_intermediate_GSEA}
+if(inter$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(inter$tab)
+}
+```
+
+####Sum
+
+```{r M0_sum_GSEA}
+if(summ$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(summ$tab)
+}
+```
+
+
+###M3 {.tabset .tabset-fade .tabset-pills}  
+
+####Classical
+
+```{r M3_classical_GSEA}
+if(class_m3$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(class_m3$tab)
+}
+```
+
+####Inflammatory
+
+```{r M3_intflammatory_GSEA}
+if(flamm_m3$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(flamm_m3$tab)
+}
+```
+
+####Intermediate
+
+```{r M3_intermediate_GSEA}
+if(inter_m3$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(inter_m3$tab)
+}
+```
+
+####Sum
+
+```{r M3_summ_GSEA}
+if(summ_m3$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(summ_m3$tab)
+}
+```
+
+##DEG: Monocyte/Lymphocytes  
+
+```{r deg_function}
+
+## run limma deg analysis
+doDEG <- function(eset, monocyte="Classical", agey="both", visitt="M0",
+                  cutt=fdr_cut) {
+  
+  eset <- eset[,eset$targets$visit==visitt]
+  
+  form <- paste("~plate + total_reads + age_weeks +", monocyte)
+  
+  design <- model.matrix(formula(form), eset$targets)
+
+  fit1 <- lmFit(eset, design)
+  fit2 <- eBayes(fit1, trend=FALSE)
+  tmp <- topTable(fit2, number=Inf, coef=monocyte, sort="P")
+  
+  tmp %>%
+    filter(adj.P.Val <= cutt) %>%
+    nrow() ->
+    summ
+  
+  return(list(tab=tmp, summ=summ))
+}
+
+## return only significant results based on 'cutt'
+getSigs <- function(dat, cutt=deg_cut, cols=colInd) {
+  tmp <- signif(dat$tab[dat$tab$adj.P.Val <= cutt, cols], 3)
+  colnames(tmp) <- c("log FC",  "P.value", "FDR")
+  return(tmp)
+}
+
+```
+
+FDR cutoff <= `r deg_cut`  
+  
+###Summary
+
+```{r run_deg_M0}
+
+class <- doDEG(rna_voom, monocyte="Classical", visitt="M0")
+flamm <- doDEG(rna_voom, monocyte="Inflammatory", visitt="M0")
+inter <- doDEG(rna_voom, monocyte="Intermediate", visitt="M0")
+summ <- doDEG(rna_voom, monocyte="Sum", visitt="M0")
+
+class_m3 <- doDEG(rna_voom, monocyte="Classical", visitt="M3")
+flamm_m3 <- doDEG(rna_voom, monocyte="Inflammatory", visitt="M3")
+inter_m3 <- doDEG(rna_voom, monocyte="Intermediate", visitt="M3")
+summ_m3 <- doDEG(rna_voom, monocyte="Sum", visitt="M3")
+
+tab <- cbind(c(class$summ, flamm$summ, inter$summ, summ$summ),
+             c(class_m3$summ, flamm_m3$summ, inter_m3$summ, summ_m3$summ))
+dimnames(tab) <- list(c("Classical", "Inflammatory", "Intermediate", "Sum"),
+                      c("M0", "M3"))
+headerKable(tab)
+```
+
+###M0 {.tabset .tabset-fade .tabset-pills}  
+
+####Classical
+
+```{r M0_classical}
+if(class$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(getSigs(class))
+}
+
+ grid.arrange(grobs=createDEGGraphs(class$tab), nrow=1)
+```
+
+####Inflammatory
+
+```{r M0_intflammatory}
+if(flamm$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(getSigs(flamm))
+}
+
+grid.arrange(grobs=createDEGGraphs(flamm$tab), nrow=1)
+```
+
+####Intermediate
+
+```{r M0_intermediate}
+if(inter$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(getSigs(inter))
+}
+
+grid.arrange(grobs=createDEGGraphs(inter$tab), nrow=1)
+```
+
+####Sum
+
+```{r M0_sum}
+if(summ$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(getSigs(summ))
+}
+
+grid.arrange(grobs=createDEGGraphs(summ$tab), nrow=1)
+```
+
+
+###M3 {.tabset .tabset-fade .tabset-pills}  
+
+####Classical
+
+```{r M3_classical}
+if(class_m3$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(getSigs(class_m3))
+}
+
+grid.arrange(grobs=createDEGGraphs(class_m3$tab), nrow=1)
+```
+
+####Inflammatory
+
+```{r M3_intflammatory}
+if(flamm_m3$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(getSigs(flamm_m3))
+}
+
+grid.arrange(grobs=createDEGGraphs(flamm_m3$tab), nrow=1)
+```
+
+####Intermediate
+
+```{r M3_intermediate}
+if(inter_m3$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(getSigs(inter_m3))
+}
+
+grid.arrange(grobs=createDEGGraphs(inter_m3$tab), nrow=1)
+```
+
+####Sum
+
+```{r M3_sum}
+if(summ_m3$summ==0) {
+  knit_print.html("No differentially expressed genes found")
+} else {
+  datatable(getSigs(summ_m3))
+}
+
+grid.arrange(grobs=createDEGGraphs(summ_m3$tab), nrow=1)
+```
+
+
+```{r looky, eval=FALSE}
+
+genie <- rna_voom[]
+
+```

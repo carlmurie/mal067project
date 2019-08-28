@@ -1,6 +1,6 @@
 ---
 title: "GSEA main effects: stimulation vs disease/vaccine"
-subtitle: "DMSO: M3"
+subtitle: "CSP: M3"
 author: "Carl Murie and Raphael Gottardo"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
@@ -23,7 +23,7 @@ library(readr)
 ```{r paramters}
 ## test main effects of vaccine and disease by stimulation
 
-stim="dmso"
+stim="ama1"
 time="M3"
 ```
 
@@ -37,23 +37,3 @@ childy <- read_file(child1)
 `r paste(knit_child(text = childy), collapse = '\n')`
 </br>
   
-
-```{r eval=FALSE}
-
-dat <- read_csv("/shared/silo_researcher/Gottardo_R/cmurie_working/RTSS/RTSS_Full/data/RTSSFullPheno_20180515.csv")
-
-## get only unique subjects
-subs <- dat[!duplicated(dat$pid),]
-
-## get only case/control
-indy <- subs$rna_seq_casecon.m12=="control" | subs$rna_seq_casecon.m12=="case"
-casey <- subs[!is.na(indy) & indy,]
-
-tab <- countSampleSizes(subs, "vaccine", "malaria")
-tab_case <- countSampleSizes(casey, "vaccine", "malaria")
-
-eff <- tab[,2]/tab[,1]
-eff_case <- tab_case[,2]/tab_case[,1]
-
-```
-

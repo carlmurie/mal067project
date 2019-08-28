@@ -25,6 +25,7 @@ library(limma)
 library(tidyverse)
 library(magrittr)
 library(here)
+library(data.table)
 
 source(here("code", "mal_utilities.R"))
 ```
@@ -33,6 +34,9 @@ source(here("code", "mal_utilities.R"))
 library(mal067data)
 data(mal067_eset)
 meta_dt <- as_tibble(pData(mal067_eset))
+
+## read btm geneset annotations
+gsea_anno <- read_tsv(here("data/btm_annotation_table.tsv"))
 ```
 
 
@@ -43,7 +47,7 @@ INTERACTION <- FALSE
 ## parameters set by parent: stim, 
 
 fdr_cut <- 0.2
-p_cut <- 0.01
+p_cut <- 0.05
 min_gene_set <- 5
 time <- "M3"
 form_interact_dis <- "~plate + total_reads + age_weeks + vaccine*case"
@@ -75,11 +79,26 @@ meta_dt %>%
 mal_vac <- mal067_eset[, sample_vac] 
 mal_vac$stimulation <- fct_drop(mal_vac$stimulation)
 mal_vac$case <- fct_drop(mal_vac$case)
+
 ```
 
+```{r formula}
+ ## voom the data with the linear model
+  design_vac <- model.matrix(formula(form_interact_dis), mal_vac)
+  mal_voom_sm <- voom(mal_vac, design=design_vac)
+  coeff <- "vaccinertss:casecase"
+  ##coeff <- "vaccinertss:malaria_status1"
+```
+
+##Vaccine disease interaction  
+  
 **vaccine*disease interaction linear model:** `r form_interact_dis`  
   
+**coefficient:** `r coeff`
+  
 FDR cutoff is `r fdr_cut`  
+  
+Time point M3 is analysed.
 
 
 ```{r eval=TRUE}
@@ -87,27 +106,39 @@ FDR cutoff is `r fdr_cut`
 ## get sample sizes
 countSampleSizes(pData(mal_vac), "stimulation", 
                  c("vaccine", "case", "age")) %>%
-headerKable(labels=c("vaccine", "case", "age"), levels=c(2,2,2), 
+headerKable(labels=c("vaccine", "case", "age"),
+            levels=c(2,2,2), 
             title="vaccine sample size")
+
+## get sample sizes
+countSampleSizes(pData(mal_vac), "vaccine", 
+                 c("case", "age")) %>%
+headerKable(labels=c("protection", "age"), levels=c(2,2), 
+            title="protection sample size")
 
 ```
 
-##Vaccine disease interaction
+
+###GSEA
 
 ```{r}
-################## vaccine analysis ############################
-
- ## voom the data with the linear model
-  design_vac <- model.matrix(formula(form_interact_dis), mal_vac)
-  mal_voom_sm <- voom(mal_vac, design=design_vac)
+############# vaccine*disease interaction analysis ###############
 
   ## run camera
-  cam_vac <- as_tibble(camera(mal_voom_sm, btm_ind, design=design_vac,
-                              contrast="vaccinertss:casecase"),
+  cam_vac <- as_tibble(camera(mal_voom_sm, btm_ind,
+                              design=design_vac, contrast=coeff),
                        rownames="geneset")
 
   numSig <- sum(cam_vac$FDR <= fdr_cut)
+  
+  cam_vac %>%
+    filter(FDR < fdr_cut) %>%
+    mutate(FDR = signif(FDR, 4),
+           PValue = signif(PValue, 4)) %>%
+  write_csv(paste0(here("output/DMSO_M3_vaccine_disease_interaction.csv")))
 ```
+
+####Signficant gene sets
 
 There were `r numSig` significant gene-sets at FDR cutoff <= 0.2.  
   
@@ -117,9 +148,154 @@ There were `r numSig` significant gene-sets at FDR cutoff <= 0.2.
     filter(FDR < fdr_cut) %>%
     mutate(FDR = signif(FDR, 4),
            PValue = signif(PValue, 4)) %>%
-    kable(align=rep("l", ncol(cam_vac))) %>%
-    kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
-                          full_width=FALSE, position="left") %>%
-     scroll_box(height = "500px")
+  datatable() %>%
+  formatRound(columns=c("PValue", "FDR"), digits=4)
 ```
+
+####Gene set annotations  
+  
+```{r anno}
+
+```
+
+###Differential Gene Expression  
+  
+  
+```{r deg}
+
+## select subset of results from 'topTable' results
+colInd <- c("logFC", "P.Value", "adj.P.Val")
+
+ fit1 <- lmFit(mal_voom_sm, design_vac)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ tmp_deg <- topTable(fit2, number=Inf, coef=coeff, sort="P")
+ deg_sig <- signif(tmp_deg[tmp_deg$adj.P.Val <= fdr_cut, colInd], 3)
+ colnames(deg_sig) <- c("log FC",  "P.value", "FDR")
+ summ <- nrow(deg_sig)
+
+if(summ >0) {
+       deg_sig %>%
+        datatable()
+  } else {
+     cat("No significant gene-sets found")
+  }
+ 
+ tmp_deg$genenames <- rownames(tmp_deg)
+  write_csv(tmp_deg, paste0(here("output/DMSO_M3_vaccine_disease_interaction_DEG.csv")))
+```
+
+###Plots of selected gene sets  {.tabset .tabset-fade .tabset-pills}
+  
+```{r set1}
+set <- "enriched in monocytes (II) (M11.0)"
+```
+  
+####`r set`   {.tabset .tabset-fade .tabset-pills}
+  
+```{r plot1}
+
+## output geneset camera results
+cam_vac[cam_vac$geneset==set,] %>%
+  headerKable
+
+genes <- mal_voom_sm[btm_ind[[set]],]
+
+## check gene names
+check <- length(intersect(rownames(genes), geneIds(btm_gtm)[[set]]))
+if(check != nrow(genes)) {stop("gene plot gone wrong")}
+
+## DEG analysis ranked sig to not_sig
+tmp_deg$genenames <- rownames(tmp_deg)
+tmp_deg[rownames(genes),] %>%
+  select(-c("t", "B")) %>%
+  mutate(logFC=signif(logFC, 3)) %>%
+  mutate(AveExpr=signif(AveExpr, 3)) %>%
+  mutate(P.Value=signif(P.Value, 3)) %>%
+  mutate(adj.P.Val=signif(adj.P.Val, 3)) %>%
+  arrange(P.Value) %>%
+  select(genenames, everything()) %>%
+  mutate(index=1:length(logFC)) ->
+  deg
+
+## check deg names
+if(length(setdiff(deg$genenames, rownames(genes))) != 0) {
+  stop("deg plot gone wrong")
+}
+```
+  
+#####Table of significant genes  
+  
+```{r}
+deg %>%
+  select(-c(index)) %>%
+  filter(P.Value <= p_cut) %>%
+headerKable()
+```
+  
+#####Plot of all genes  
+  
+```{r}
+
+x <- c(0.05, seq(0.1,1, 0.1))
+pval_quants <- unlist(lapply(x, function(x, dat=deg$P.Value) {return(which.min(dat <= x))}))
+
+ggplot(deg, aes(x=index, y=logFC)) + geom_point() + 
+  ##gghighlight(P.Value <0.011, color="red", label_key=genenames,
+  ##            label_params=list(color="red"))
+  geom_point(data=deg[1:2,], colour="red") +
+  annotate("text", x=1+15, y=deg$logFC[1], label=deg$genenames[1], 
+           color="red") + 
+  annotate("text", x=2+25, y=deg$logFC[2], label=deg$genenames[2], 
+           color="red") + 
+  geom_hline(yintercept=0, linetype="dashed", color="black") +
+  xlab("gene") + 
+  geom_vline(xintercept=pval_quants, linetype="dashed", color="blue", size=0.1) +
+ ##annotate("text", x=sig_ind+25, y=1, label="Pvalue <= 0.05", 
+  ##         color="blue", size=4) +
+  geom_line(aes(x=index, y=-c(1-P.Value)), color="blue") +
+  scale_y_continuous(sec.axis = sec_axis(~.+1, name = "Pvalue")) +
+  theme( axis.line.y.right = element_line(color = "blue"), 
+       axis.ticks.y.right = element_line(color = "blue"),
+       axis.title.y.right= element_text(color = "blue"),
+       axis.text.y.right= element_text(color = "blue"))
+
+melt(genes$E) %>%
+  dplyr::left_join(genes$targets[, c("col_id", "vaccine", "malaria_status")], by=c("Var2"="col_id")) %>%
+  mutate(disease=plyr::mapvalues(malaria_status, from=c(0,1), 
+                        to=c("Protection", "noProtection"))) %>%
+  mutate(cell=factor(paste(vaccine, disease, sep="_"),
+                     levels=c("rtss_noProtection",
+                              "rtss_Protection",
+                              "comparator_noProtection",
+                              "comparator_Protection"))) ->
+plot_dt
+
+```
+  
+#####Plot signifcant genes  
+  
+```{r gene1}
+## get data for all significant genes in geneset
+deg %>%
+  filter(P.Value <= p_cut) %$%
+  genenames ->
+sig_genes 
+
+melt(genes$E[sig_genes,]) %>%
+  dplyr::left_join(genes$targets[, c("col_id", "vaccine", "malaria_status")], by=c("Var2"="col_id")) %>%
+  mutate(disease=plyr::mapvalues(malaria_status, from=c(0,1), 
+                        to=c("Protection", "noProtection"))) %>%
+  mutate(cell=factor(paste(vaccine, disease, sep="_"),
+                     levels=c("rtss_noProtection",
+                              "rtss_Protection",
+                              "comparator_noProtection",
+                              "comparator_Protection"))) ->
+plot_dt
+
+ggplot(plot_dt, aes(x=cell, y=value, color=cell)) +
+  geom_boxplot() + facet_wrap(~Var1, scales="free") +
+  theme(axis.text.x=element_blank())
+```
+
+
 

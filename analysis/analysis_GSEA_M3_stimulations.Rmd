@@ -1,0 +1,144 @@
+---
+title: "GSEA analysis stimulations"
+author: "Carl Murie"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+
+```{r load-packages, echo=FALSE, warning=FALSE, message=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message=FALSE)
+
+library(Biobase)
+library(tidyverse)
+library(data.table)
+library(here)
+library(RNASeqUtilities)
+library(DT)
+library(magrittr)
+library(readr)
+library(venn)
+library(heatmap3)
+```
+
+#Comparison of GSEA results for the three stimulation interactions (stim-DMSO)  
+  
+For each stimulation a test was applied to the vaccine effect (rts,s and comparator) and disease effect (protected vs not protected).
+  
+Heatmaps show all significant gene sets for both disease and vaccine comparisons together for all three stimulations.   
+  
+Scale is signed log10 PValue where blue is up-regulated and red is down-regulated.
+  
+##M3  {.tabset .tabset-fade .tabset-pills}
+  
+
+```{r load_data_M3}
+ama  <- read_csv(here("output/GSEA_M3_ama1_vac_dis.csv"))
+csp  <- read_csv(here("output/GSEA_M3_csp_vac_dis.csv"))
+hbs  <- read_csv(here("output/GSEA_M3_hbs_vac_dis.csv"))
+fdr_cut <- 0.2
+```
+
+```{r combine_M3}
+ama %>%
+  filter(FDR_vac <= fdr_cut | FDR_dis <= fdr_cut) %$%
+  geneset ->
+ama_sigs 
+
+csp %>%
+  filter(FDR_vac <= fdr_cut | FDR_dis <= fdr_cut) %$%
+  geneset ->
+csp_sigs 
+
+hbs %>%
+  filter(FDR_vac <= fdr_cut | FDR_dis <= fdr_cut) %$%
+  geneset ->
+hbs_sigs 
+
+all_sigs <- unique(c(ama_sigs, csp_sigs, hbs_sigs))
+```
+
+###vaccine
+
+```{r vac_m3}
+
+## get log10Pval for vaccine effect for all stimulations
+ama %>%
+  filter(geneset %in% all_sigs) %>%
+  dplyr::select(c(geneset, c("geneset", "log10_Pval_vac"))) %>%
+  dplyr::left_join(csp[,c("geneset", "log10_Pval_vac")], by="geneset") %>%
+  dplyr::left_join(hbs[,c("geneset", "log10_Pval_vac")], by="geneset") %>%
+  plyr::rename(c("log10_Pval_vac.x"="ama1", 
+                 "log10_Pval_vac.y"="csp",
+                 "log10_Pval_vac"="hbs")) %>%
+  column_to_rownames("geneset") %>%
+  as.matrix() ->
+  heat_mat
+
+## get FDR for vaccine effect for all stimulations
+ama %>%
+  filter(geneset %in% all_sigs) %>%
+  dplyr::select(c(geneset, c("geneset", "FDR_vac"))) %>%
+  dplyr::left_join(csp[,c("geneset", "FDR_vac")], by="geneset") %>%
+  dplyr::left_join(hbs[,c("geneset", "FDR_vac")], by="geneset") %>%
+  plyr::rename(c("FDR_vac.x"="ama1", 
+                 "FDR_vac.y"="csp",
+                 "FDR_vac"="hbs")) %>%
+  column_to_rownames("geneset") %>%
+  as.data.frame() ->
+  fdr_mat
+  
+  fdr_index <- which(fdr_mat <= fdr_cut, arr.ind=TRUE)
+  fdr_index <- cbind(data.frame(fdr_index), "yellow", 5)
+ 
+
+heatmap3(heat_mat, Rowv=NA, Colv=NA, scale="none", balanceColor=TRUE, highlightCell=fdr_index,
+         cexRow=1.5 ,showRowDendro=FALSE, 
+         col=colorRampPalette(c("firebrick3", "white", "navy"))(1024))
+```
+
+###disease
+
+```{r dis_m3}
+
+## get log1Pval for vaccine effect for all stimulations
+ama %>%
+  filter(geneset %in% all_sigs) %>%
+  dplyr::select(c(geneset, c("geneset", "log10_Pval_dis"))) %>%
+  dplyr::left_join(csp[,c("geneset", "log10_Pval_dis")], by="geneset") %>%
+  dplyr::left_join(hbs[,c("geneset", "log10_Pval_dis")], by="geneset") %>%
+  plyr::rename(c("log10_Pval_dis.x"="ama1", 
+                 "log10_Pval_dis.y"="csp",
+                 "log10_Pval_dis"="hbs")) %>%
+  column_to_rownames("geneset") %>%
+  as.matrix() ->
+  heat_mat
+
+## get FDR for vaccine effect for all stimulations
+ama %>%
+  filter(geneset %in% all_sigs) %>%
+  dplyr::select(c(geneset, c("geneset", "FDR_dis"))) %>%
+  dplyr::left_join(csp[,c("geneset", "FDR_dis")], by="geneset") %>%
+  dplyr::left_join(hbs[,c("geneset", "FDR_dis")], by="geneset") %>%
+  plyr::rename(c("FDR_dis.x"="ama1", 
+                 "FDR_dis.y"="csp",
+                 "FDR_dis"="hbs")) %>%
+  column_to_rownames("geneset") %>%
+  as.data.frame() ->
+  fdr_mat
+  
+  fdr_index <- which(fdr_mat <= fdr_cut, arr.ind=TRUE)
+  fdr_index <- cbind(data.frame(fdr_index), "yellow", 5)
+ 
+
+
+heatmap3(heat_mat, Rowv=NA, Colv=NA, scale="none", balanceColor=TRUE, highlightCell=fdr_index,
+         cexRow=1.5 ,showRowDendro=FALSE, 
+         col=colorRampPalette(c("firebrick3", "white", "navy"))(1024))
+```
+

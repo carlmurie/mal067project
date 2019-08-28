@@ -1,0 +1,900 @@
+---
+title: "Bagamoyo analysis"
+author: "Carl Murie"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: html_document
+---
+
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r packages}
+library(RNASeqUtilities)
+library(Biobase)
+library(limma)
+library(magrittr)
+library(here)
+library(data.table)
+library(survival)   ## clogit
+library(GSEABase)
+library(DT)
+library(tidyverse)
+library(venn)
+library(heatmap3)
+
+source(here("code", "mal_utilities.R"))
+```
+
+```{r load-data}
+library(mal067data)
+data(mal067_eset)
+
+pData(mal067_eset)$malaria_status <-
+  plyr::mapvalues(pData(mal067_eset)$malaria_status, 
+                  from=c(0,1), 
+                  to=c("not_infected","infected"))
+
+dt <- as_tibble(pData(mal067_eset))
+
+## read in BTM annotations
+read_tsv(here("data/btm_annotation_table.tsv")) %>%
+  dplyr::select(c("ID",	"Module title",	"Composite name", "Module category","Top matched Gene Ontology terms (number of matched genes)")) %>%
+  dplyr::rename(GO_terms="Top matched Gene Ontology terms (number of matched genes)") ->
+anno
+
+terms <- unique(unlist(sapply(anno$GO_terms, function(x) {return(str_trim(str_split(x, ",", simplify=TRUE)))}, simplify=TRUE)))
+
+terms <- unique(unlist(sapply(terms, function(x) {return(str_remove(x, " \\(.+\\)"))})))
+
+```
+
+#Bagamoyo analysis  
+  
+The analysis is restricted to only subjects from Bagamoyo as most of the the M0 samples are from this site. This will reduce the analysis to only the old age group but allow for longitudinal analysis.  
+  
+```{r gsea}
+min_gene_set <- 5
+
+## set up GSEA analysis
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+```
+
+
+```{r setup}
+DOCOR <- FALSE
+fdr_cut <- 0.2
+p_cut <- 0.01
+
+dt %>%
+  filter(site=="BAGAMOYO") %$%
+  col_id ->
+  bag_ind
+
+bag_eset <- mal067_eset[,bag_ind] 
+meta_dt <- pData(bag_eset)
+
+v_bag <- mal067_voom[,bag_ind]
+```
+
+#Sample sizes  
+  
+```{r}
+meta_dt %>%
+  countSampleSizes("stimulation", c("vaccine", "malaria_status",  "age", "visit")) %>%
+  headerKable(labels=c("vaccine", "disease", "age", "visit"),
+              levels=c(2,2,2,2))
+```
+
+#Infection rates  
+  
+```{r prot}
+meta_dt %>% 
+  filter(!duplicated(pid)) %>%
+  countSampleSizes("vaccine", "malaria_status") ->
+tab
+  
+tab %>%
+  mutate(vaccine=c("comparator", "rtss")) %>%
+  dplyr::select(vaccine, everything()) %>%
+   mutate("protection (%)"=100*signif(not_infected/total, 3)) %>%
+  headerKable()
+
+## apply fisher test
+fish <- fisher.test(tab[,2:3])
+```
+
+Fisher exact test pValue: `r signif(fish$p.value, 3)`
+
+#CiberSort monocyte/lymphocyte ratios  {.tabset .tabset-fade .tabset-pills}  
+  
+```{r ciber}
+
+## get ciber 
+ciber <- read_csv(here("data/CiberSort_RTSS.csv"))
+
+## extract lymphocyte cell names
+lymph_names <- colnames(ciber)[str_detect(colnames(ciber), 
+                                    "T cells|B cells|NK cells|Plasma cells")]
+
+## extract non-lymphocyte cell names
+not_lymph_names <- colnames(ciber)[!str_detect(colnames(ciber), 
+                                          "T cells|B cells|NK cells|Plasma cells")]
+not_lymph_names <- not_lymph_names[-c(1:2,12:14)]
+not_lymph_names <- c(not_lymph_names, c("", "", ""))
+
+## calculate monocyte/lymphcyte ratios
+ciber %<>%
+  mutate(Lymphocytes= apply(ciber[,lymph_names], 1, sum)) %<>%
+  mutate(ml_ratio=Monocytes/Lymphocytes)
+
+ciber %>%
+  dplyr::select(c('Input Sample', Monocytes, ml_ratio)) %>%
+  dplyr::left_join(pData(mal067_eset), by=c("Input Sample"="col_id")) ->
+  cytes
+```
+
+##ML ratio   
+  
+```{r mlciber}
+ggplot(cytes, aes(x=malaria_status, y=ml_ratio, color=malaria_status)) +
+  geom_boxplot() + facet_wrap(~visit)
+```
+  
+##Monocyte abundance   
+  
+```{r mono_ciber}
+ggplot(cytes, aes(x=malaria_status, y=Monocytes, color=malaria_status)) +
+  geom_boxplot() + facet_wrap(~visit)
+```
+
+
+#GSEA longitudinal {.tabset .tabset-fade .tabset-pills}  
+  
+Only paired data is used in the longitudinal analysis.  
+
+```{r long_setup}
+form_visit <- "~plate + total_reads + age_weeks + pid + visit"
+form_visit_vac <- "~plate + total_reads + age_weeks + pid +  visit*vaccine"
+form_visit_dis <- "~plate + total_reads + age_weeks + pid +  visit*malaria_status"
+
+gsea_sum <- NULL   ## store summary results
+venn_list <- list()  ## store lists of signficant gene sets
+
+## get paired intersection between time points
+pids <- intersect(meta_dt$pid[meta_dt$visit=="M0"],
+                  meta_dt$pid[meta_dt$visit=="M3"])
+
+meta_dt %>%
+  filter(pid %in% pids) %>%
+  filter(stimulation=="dmso") %$%
+  col_id ->
+  long_ind
+
+long_eset <- bag_eset[,long_ind] 
+long_dt <- pData(long_eset)
+
+## select voom normalized data for plotting selected genes
+voomy <- mal067_voom[,long_ind]
+
+pData(long_eset) %>%
+countSampleSizes("vaccine", "malaria_status") ->
+tab
+  
+tab %>%
+  mutate(vaccine=c("comparator", "rtss")) %>%
+  dplyr::select(vaccine, everything()) %>%
+   mutate("protection (%)"=100*signif(not_infected/total, 3)) %>%
+  headerKable()
+```
+  
+  
+```{r m3_m0}
+############ comparator visit analysis #############
+
+## select only rtss vaccinated subjects
+long_dt %>%
+##  filter(pids %in% pid) %>%
+  filter(vaccine=="comparator") %$%
+  col_id ->
+  comp_ind
+
+comp_eset <- bag_eset[,comp_ind]
+
+## voom the data with the linear model
+des <- model.matrix(formula(form_visit), pData(comp_eset))
+coef <- dplyr::last(colnames(des))
+v <- voom(comp_eset, design=des)
+
+## run camera
+cam_visit <- as_tibble(camera(v, btm_ind, design=des,
+                              contrast=coef),
+                       rownames="geneset")
+
+## extract summary information
+gsea_sum <- c(gsea_sum, sum(cam_visit$FDR <= fdr_cut))
+cam_visit %>%
+  filter(FDR <= fdr_cut) %>%
+  pull(geneset) ->
+  venn_list[["visit"]]
+```
+
+
+```{r m3_m0_vac}
+############ vaccine analysis ################
+
+## voom the data with the linear model
+des <- model.matrix(formula(form_visit_vac), long_dt)
+coef <- dplyr::last(colnames(des))
+v <- voom(long_eset, design=des)
+
+## run camera
+cam_vac <- as_tibble(camera(v, btm_ind, design=des,
+                            contrast=coef),
+                       rownames="geneset")
+
+## extract summary information
+gsea_sum <- c(gsea_sum, sum(cam_vac$FDR <= fdr_cut))
+cam_vac %>%
+  filter(FDR <= fdr_cut) %>%
+  pull(geneset) ->
+  venn_list[["vaccine"]]
+```
+
+
+```{r m3_m0_dis}
+############# disease analysis ###############
+
+## select only rtss vaccinated subjects
+long_dt %>%
+  filter(vaccine=="rtss") %$%
+  col_id ->
+  dis_ind
+
+dis_eset <- long_eset[,dis_ind]
+
+## voom the data with the linear model
+des <- model.matrix(formula(form_visit_dis), pData(dis_eset))
+coef <- dplyr::last(colnames(des))
+v <- voom(dis_eset, design=des)
+
+## run camera
+cam_dis <- as_tibble(camera(v, btm_ind, design=des,
+                            contrast=coef),
+                       rownames="geneset")
+
+## extract summary information
+gsea_sum <- c(gsea_sum, sum(cam_dis$FDR <= fdr_cut))
+cam_dis %>%
+  filter(FDR <= fdr_cut) %>%
+  pull(geneset) ->
+  venn_list[["disease"]]
+```
+  
+
+##GSEA longitudinal summary  
+  
+```{r gsea_summary}
+data.frame(comparison=c("visit", "visit*vaccine",
+                        "visit*infection"),
+                     'num significant sets'=gsea_sum) %>%
+  headerKable()
+```
+
+##Venn diagram of overlap  
+  
+```{r venn_m3}
+venn(venn_list, zcolor = "style")
+```
+  
+##visit (M3-M0)  
+ 
+**linear model:** `r form_visit`  
+**coefficient:** `r coef`  
+  
+Only comparator subjects were used in this analysis.  
+  
+```{r visit_cam}
+cam_visit %>%
+  mutate(PValue=signif(PValue, 3)) %>%
+  mutate(FDR=signif(FDR, 3)) %>%
+  filter(FDR <= fdr_cut) %>%
+  dplyr::left_join(anno[,c("Composite name", "GO_terms")], 
+                   by=c("geneset"="Composite name")) %>%
+  datatable()
+```
+  
+##visit*vaccine (M3-M0)  
+
+**linear model:** `r form_visit_vac`   
+**coefficient:** `r coef`  
+    
+```{r visit_vac}
+cam_vac %>%
+  mutate(PValue=signif(PValue, 3)) %>%
+  mutate(FDR=signif(FDR, 3)) %>%
+  filter(FDR <= fdr_cut) %>%
+  dplyr::left_join(anno[,c("Composite name", "GO_terms")], 
+                   by=c("geneset"="Composite name")) %>%
+  datatable()
+```
+
+##visit*disease (M3-M0)  
+  
+**linear model:** `r form_visit_vac`   
+**coefficient:** `r coef`   
+  
+Only rts,s vaccine subjects were used in this analysis.
+  
+```{r visit_vac_dis}
+cam_dis %>%
+  mutate(PValue=signif(PValue, 3)) %>%
+  mutate(FDR=signif(FDR, 3)) %>%
+  filter(FDR <= fdr_cut) %>%
+  dplyr::left_join(anno[,c("Composite name", "GO_terms")], 
+                   by=c("geneset"="Composite name")) %>%
+  datatable()
+```
+ 
+ 
+#Analysis of select genes from significant gene-sets 
+  
+```{r setup_geneset}
+
+gene_sets <- c("enriched in monocytes (II) (M11.0)",
+               "enriched in myeloid cells and monocytes (M81)",
+               "myeloid cell enriched receptors and transporters (M4.3)",
+                "TBA (M174)")
+
+genies <- c("SIGLEC9", "FCER1G", "ALOX5",	"MS4A14",	"TSN", "RBM47",	"CLEC4E",	"PLXDC2",	"MARCO", "SIGLEC9", "MS4A7", "SULF2",	"MS4A6A",	"ZBED5", "RBM47", "CEBPD", "CST3",	"HNMT",	"ZBTB11",	"MS4A7", "PLAUR",	"SPI1",	"PDGFA", "RNF6", "CEBPD")
+
+
+cam_dis %>%
+  filter(geneset %in% gene_sets) ->
+  dis_out
+
+cam_vac %>%
+  filter(geneset %in% gene_sets) ->
+  vac_out
+```
+
+The following gene-sets were found signficant for both the vaccine and disease comparison for the DMSO samples for visit M3. Here are the significance levels for these gene-sets for the vaccine (RTS,S - comparator) and disease (infected - noninfected) interactions with visits (M3-M0).
+  
+```{r}
+dis_out %>% 
+  headerKable(title="disease visit interaction")
+
+vac_out %>% 
+  headerKable(title="vaccine visit interaction")
+```
+
+The following genes were determined to be the driver genes for these gene-sets based on DEG expression.  
+  
+`r matrix(genies, ncol=5) %>% headerKable()`  
+
+Here are the log2CPM gene expression data for these cells. The difference (deltas) between M3 and M0 (M3-M0) are plotted below. This shows how gene expression changed pre and post vaccination
+  
+```{r genies}
+
+## voomy is generated in long_eset_setup chunk
+genes <- voomy[genies,]
+
+data.table::melt(genes$E) %>%
+  dplyr::left_join(genes$targets[, c("col_id", "vaccine", "malaria_status", "visit")], by=c("Var2"="col_id")) %>%
+  mutate(disease=plyr::mapvalues(malaria_status,
+                                 from=c(0,1), 
+                        to=c("No", "Yes"))) %>%
+  ##mutate(relevel(disease, "Yes")) %>%
+  mutate(cell=factor(paste(vaccine, disease, sep="_"),
+                     levels=c("rtss_Yes",
+                              "rtss_No",
+                              "comparator_Yes",
+                              "comparator_No"))) %>%
+  data.table() ->
+plot_dt
+
+## plot means of each cell
+plot_means <- plot_dt[,(mean = mean(value)), 
+                      by=list(Var1, vaccine, malaria_status, disease, visit)]
+
+## calculate difference of means M3-M0 for each cell (vaccine, disease) by gene
+deltas <- dcast(plot_means, ...~visit, value.var="V1")
+deltas[, Delta:=M3-M0]
+
+ggplot(deltas,  aes(x=disease, y=Delta, group=vaccine)) + 
+  geom_line(aes(col=vaccine))  +
+  facet_wrap(~Var1, scales="free") +
+  ylab("log2 CPM") 
+
+ 
+##x <- plot_means[Var1=="SIGLEC9"]
+##deltas <- dcast(x, ...~visit, value.var="V1")
+##deltas[, Delta:=M3-M0]
+
+
+```
+
+
+```
+ 
+#Differential Gene Expression (DGE) Longitudinal {.tabset .tabset-fade .tabset-pills}  
+ 
+## visit*vaccine (M3-M0)  
+  
+```{r m3_m0_vac_deg}
+############ deg vaccine analysis ################
+
+## voom the data with the linear model
+des <- model.matrix(formula(form_visit_vac), long_dt)
+coef <- dplyr::last(colnames(des))
+v <- voom(long_eset, design=des)
+
+if(DOCOR) {
+system.time(ranCor <- duplicateCorrelation(v, design=des,                  block=long_dt$pid)$consensus.correlation)
+  write_rds(ranCor, here("data/long_vac_DupCor.csv"))
+} else {
+  ranCor <- read_rds( here("data/long_vac_DupCor.csv"))
+}
+
+ fit1 <- lmFit(v, des, correlation=ranCor, block=v$targets$pid)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ deg_vac <- topTable(fit2, number=Inf, coef=coef, sort="P")
+```
+   
+**linear model:** `r form_visit_vac`   
+**coefficient:** `r coef`   
+  
+No significant differentially expressed genes
+  
+ 
+ 
+## visit*disease (M3-M0)   
+
+```{r m3_m0_dis_deg}
+############# disease analysis ###############
+
+## select only rtss vaccinated subjects
+long_dt %>%
+  filter(vaccine=="rtss") %$%
+  col_id ->
+  dis_ind
+
+dis_eset <- long_eset[,dis_ind]
+
+## voom the data with the linear model
+des <- model.matrix(formula(form_visit_dis), pData(dis_eset))
+coef <- dplyr::last(colnames(des))
+v <- voom(dis_eset, design=des)
+
+if(DOCOR) {
+system.time(ranCor <- duplicateCorrelation(v, design=des,                  block=dis_eset$pid)$consensus.correlation)
+  write_rds(ranCor, here("data/long_dis_DupCor.csv"))
+} else {
+  ranCor <- read_rds( here("data/long_dis_DupCor.csv"))
+}
+
+ fit1 <- lmFit(v, des, correlation=ranCor, block=v$targets$pid)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ deg_dis <- topTable(fit2, number=Inf, coef=coef, sort="P")
+``` 
+ 
+**linear model:** `r form_visit_dis`   
+**coefficient:** `r coef`   
+  
+No significant differentially expressed genes
+  
+ 
+#GSEA stimulant at M0 {.tabset .tabset-fade .tabset-pills}  
+  
+```{r stim_setup_m0}
+form_interact_vac <- "~plate + total_reads + age_weeks + pid + stimulation"
+
+all_cam <- NULL   ## store all significant gene-sets across stimulants
+```
+
+
+##AMA1 M0 
+     
+```{r ama_setup_m0}
+csp_sum <- NULL
+
+meta_dt %>% 
+  filter(visit=="M0") %>%
+  filter(stimulation == "dmso" | stimulation == "ama1") %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation levels
+csp_eset <- mal067_eset[, sample_vac] 
+csp_eset$stimulation <- fct_drop(csp_eset$stimulation)
+
+```
+  
+
+```{r ama_m0, eval=TRUE}
+############## stim effect #############
+
+## voom the data with the linear model
+des <- model.matrix(formula(form_interact_vac),
+                    pData(csp_eset))
+coef <- dplyr::last(colnames(des))
+v <- voom(csp_eset, design=des)
+
+pData(csp_eset) %>%
+countSampleSizes("vaccine", c("stimulation", "malaria_status",
+                              "visit")) %>%
+  headerKable(c("stimulation", "disease", "visit"), c(2,2,2))
+```
+
+**linear model:** `r form_interact_vac`  
+**coefficient:** `r coef`   
+  
+```{r ama_cam_m0, eval =TRUE}
+## run camera
+cam <- as_tibble(camera(v, btm_ind, design=des, contrast=coef),
+                       rownames="geneset")
+gsea_sum <- sum(cam$FDR <= fdr_cut)
+
+if(gsea_sum == 0) {
+  cat("No significant gene sets found\n")
+} else {
+cam %>%
+  mutate(PValue=signif(PValue, 3)) %>%
+  mutate(FDR=signif(FDR, 3)) %>%
+  filter(FDR <= fdr_cut) %>%
+  datatable()
+}
+
+  cam %>%
+    mutate(stim="ama1") ->
+  all_cam
+```
+
+  
+##CSP M0 
+     
+```{r csp_setup_m0}
+csp_sum <- NULL
+
+meta_dt %>% 
+  filter(visit=="M0") %>%
+  filter(stimulation == "dmso" | stimulation == "csp") %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation levels
+csp_eset <- mal067_eset[, sample_vac] 
+csp_eset$stimulation <- fct_drop(csp_eset$stimulation)
+
+```
+  
+
+```{r csp_m0, eval=TRUE}
+############## stim effect #############
+
+## voom the data with the linear model
+des <- model.matrix(formula(form_interact_vac),
+                    pData(csp_eset))
+coef <- dplyr::last(colnames(des))
+v <- voom(csp_eset, design=des)
+
+pData(csp_eset) %>%
+countSampleSizes("vaccine", c("stimulation", "malaria_status",
+                              "visit")) %>%
+  headerKable(c("stimulation", "disease", "visit"), c(2,2,2))
+```
+
+**linear model:** `r form_interact_vac`  
+**coefficient:** `r coef`   
+  
+```{r csp_cam_m0, eval =TRUE}
+## run camera
+cam <- as_tibble(camera(v, btm_ind, design=des, contrast=coef),
+                       rownames="geneset")
+gsea_sum <- sum(cam$FDR <= fdr_cut)
+
+if(gsea_sum == 0) {
+  cat("No significant gene sets found\n")
+} else {
+cam %>%
+  mutate(PValue=signif(PValue, 3)) %>%
+  mutate(FDR=signif(FDR, 3)) %>%
+  filter(FDR <= fdr_cut) %>%
+  datatable()
+}
+
+ cam %>%
+    mutate(stim="csp") %>%
+   rbind(all_cam) ->
+  all_cam
+```
+
+
+##HBS M0  
+     
+```{r hbs_setup_m0}
+hbs_sum <- NULL
+
+meta_dt %>% 
+  filter(visit=="M0") %>%
+  filter(stimulation == "dmso" | stimulation == "hbs") %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation levels
+hbs_eset <- mal067_eset[, sample_vac] 
+hbs_eset$stimulation <- fct_drop(hbs_eset$stimulation)
+
+```
+  
+
+```{r hbs_m0, eval=TRUE}
+############## vaccine/stim interaction #############
+
+## voom the data with the linear model
+des <- model.matrix(formula(form_interact_vac),
+                    pData(hbs_eset))
+coef <- dplyr::last(colnames(des))
+v <- voom(hbs_eset, design=des)
+
+pData(hbs_eset) %>%
+countSampleSizes("vaccine", c("stimulation", "malaria_status",
+                              "visit")) %>%
+  headerKable(c("stimulation", "disease", "visit"), c(2,2,2))
+```
+
+**linear model:** `r form_interact_vac`  
+**coefficient:** `r coef`   
+  
+```{r hbs_cam_m0, eval =TRUE}
+## run camera
+cam <- as_tibble(camera(v, btm_ind, design=des, contrast=coef),
+                       rownames="geneset")
+gsea_sum <- sum(cam$FDR <= fdr_cut)
+
+if(gsea_sum == 0) {
+  cat("No significant gene sets found\n")
+} else {
+cam %>%
+  mutate(PValue=signif(PValue, 3)) %>%
+  mutate(FDR=signif(FDR, 3)) %>%
+  filter(FDR <= fdr_cut) %>%
+  datatable()
+}
+
+cam %>%
+    mutate(stim="hbs") %>%
+   rbind(all_cam) ->
+  all_cam
+```
+
+##Heatmap  
+  
+```{r heater}
+
+all_cam %>%
+  filter(FDR <= fdr_cut) %>%
+  filter(!duplicated(geneset)) %$%
+  geneset ->
+  sigs
+
+all_cam %>%
+  filter(geneset %in% sigs) %>%
+  filter(!grepl("TBA", geneset)) %>%
+  mutate(sign = as.numeric(plyr::mapvalues(Direction, 
+                                           from=c("Up", "Down"), 
+                                           to=c(1, -1)))) %>%
+  mutate(FDR_sign = -log10(FDR)*sign) %>%
+  dplyr::select(c(geneset, FDR_sign, stim)) ->
+all_sigs 
+
+dcast(all_sigs, geneset~stim, value.var="FDR_sign") %>%
+ as_tibble() %>%
+  column_to_rownames("geneset") %>%
+  as.matrix() ->
+  heat_mat
+
+heatmap3(heat_mat, Rowv=TRUE, Colv=NA, scale="none", balanceColor=TRUE, 
+         cexRow=0.45 ,showRowDendro=FALSE, 
+         col=colorRampPalette(c("firebrick3", "white", "navy"))(1024))
+```
+
+#GSEA stimulant vs vaccine/disease at M3 {.tabset .tabset-fade .tabset-pills}  
+  
+```{r stim_setup}
+form_interact_vac <- "~plate + total_reads + age_weeks + pid + vaccine*stimulation"
+form_interact_dis <- "~plate + total_reads + age_weeks + pid + malaria_status*stimulation"
+```
+  
+
+##CSP M3 {.tabset .tabset-fade .tabset-pills}  
+     
+```{r csp_setup}
+csp_sum <- NULL
+
+meta_dt %>% 
+  filter(visit=="M3") %>%
+  filter(stimulation == "dmso" | stimulation == "csp") %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation levels
+csp_eset <- mal067_eset[, sample_vac] 
+csp_eset$stimulation <- fct_drop(csp_eset$stimulation)
+
+```
+  
+###vaccine    
+
+```{r csp, eval=TRUE}
+############## vaccine/stim interaction #############
+
+## voom the data with the linear model
+des <- model.matrix(formula(form_interact_vac),
+                    pData(csp_eset))
+coef <- dplyr::last(colnames(des))
+v <- voom(csp_eset, design=des)
+
+pData(csp_eset) %>%
+countSampleSizes("vaccine", c("stimulation", "malaria_status",
+                              "visit")) %>%
+  headerKable(c("stimulation", "disease", "visit"), c(2,2,2))
+```
+
+**linear model:** `r form_interact_vac`  
+**coefficient:** `r coef`   
+  
+```{r csp_cam, eval =TRUE}
+## run camera
+cam <- as_tibble(camera(v, btm_ind, design=des, contrast=coef),
+                       rownames="geneset")
+gsea_sum <- sum(cam$FDR <= fdr_cut)
+
+if(gsea_sum == 0) {
+  cat("No significant gene sets found\n")
+} else {
+cam %>%
+  mutate(PValue=signif(PValue, 3)) %>%
+  mutate(FDR=signif(FDR, 3)) %>%
+  filter(FDR <= fdr_cut) %>%
+  datatable()
+}
+```
+
+###disease    
+
+```{r csp_dis, eval=TRUE}
+############## disease/stim interaction #############
+
+pData(csp_eset) %>%
+  filter(vaccine=="rtss") %$%
+  col_id ->
+  dis_ind
+
+dis_eset <- csp_eset[,dis_ind]
+
+## voom the data with the linear model
+des <- model.matrix(formula(form_interact_dis),
+                    pData(dis_eset))
+coef <- dplyr::last(colnames(des))
+v <- voom(dis_eset, design=des)
+
+pData(dis_eset) %>%
+countSampleSizes("vaccine", c("stimulation", "malaria_status",
+                              "visit")) %>%
+  headerKable(c("stimulation", "disease", "visit"), c(2,2,2))
+```
+
+**linear model:** `r form_interact_dis`  
+**coefficient:** `r coef`  
+  
+```{r csp_cam_dis, eval =TRUE}
+## run camera
+cam <- as_tibble(camera(v, btm_ind, design=des, contrast=coef),
+                       rownames="geneset")
+gsea_sum <- sum(cam$FDR <= fdr_cut)
+
+cam %>%
+  mutate(PValue=signif(PValue, 3)) %>%
+  mutate(FDR=signif(FDR, 3)) %>%
+  filter(FDR <= fdr_cut) %>%
+  datatable()
+```
+
+##HBS M3 {.tabset .tabset-fade .tabset-pills}  
+     
+```{r hbs_setup}
+hbs_sum <- NULL
+
+meta_dt %>% 
+  filter(visit=="M3") %>%
+  filter(stimulation == "dmso" | stimulation == "hbs") %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation levels
+hbs_eset <- mal067_eset[, sample_vac] 
+hbs_eset$stimulation <- fct_drop(hbs_eset$stimulation)
+
+```
+  
+###vaccine    
+
+```{r hbs, eval=TRUE}
+############## vaccine/stim interaction #############
+
+## voom the data with the linear model
+des <- model.matrix(formula(form_interact_vac),
+                    pData(hbs_eset))
+coef <- dplyr::last(colnames(des))
+v <- voom(hbs_eset, design=des)
+
+pData(hbs_eset) %>%
+countSampleSizes("vaccine", c("stimulation", "malaria_status",
+                              "visit")) %>%
+  headerKable(c("stimulation", "disease", "visit"), c(2,2,2))
+```
+
+**linear model:** `r form_interact_vac`  
+**coefficient:** `r coef`   
+  
+```{r hbs_cam, eval =TRUE}
+## run camera
+cam <- as_tibble(camera(v, btm_ind, design=des, contrast=coef),
+                       rownames="geneset")
+gsea_sum <- sum(cam$FDR <= fdr_cut)
+
+if(gsea_sum == 0) {
+  cat("No significant gene sets found\n")
+} else {
+cam %>%
+  mutate(PValue=signif(PValue, 3)) %>%
+  mutate(FDR=signif(FDR, 3)) %>%
+  filter(FDR <= fdr_cut) %>%
+  datatable()
+}
+```
+
+###disease    
+
+```{r hbs_dis, eval=TRUE}
+############## disease/stim interaction #############
+
+pData(hbs_eset) %>%
+  filter(vaccine=="rtss") %$%
+  col_id ->
+  dis_ind
+
+dis_eset <- hbs_eset[,dis_ind]
+
+## voom the data with the linear model
+des <- model.matrix(formula(form_interact_dis),
+                    pData(dis_eset))
+coef <- dplyr::last(colnames(des))
+v <- voom(dis_eset, design=des)
+
+pData(dis_eset) %>%
+countSampleSizes("vaccine", c("stimulation", "malaria_status",
+                              "visit")) %>%
+  headerKable(c("stimulation", "disease", "visit"), c(2,2,2))
+```
+
+**linear model:** `r form_interact_dis`  
+**coefficient:** `r coef`  
+  
+```{r hbs_cam_dis, eval =TRUE}
+## run camera
+cam <- as_tibble(camera(v, btm_ind, design=des, contrast=coef),
+                       rownames="geneset")
+gsea_sum <- sum(cam$FDR <= fdr_cut)
+
+cam %>%
+  mutate(PValue=signif(PValue, 3)) %>%
+  mutate(FDR=signif(FDR, 3)) %>%
+  filter(FDR <= fdr_cut) %>%
+  datatable()
+```

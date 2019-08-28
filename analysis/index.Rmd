@@ -43,14 +43,30 @@ This project aims to understand characteristics of the RTS,S vaccine and identif
 ####[HBS: M3](primary_main_M3_HBS.html)  
   
 ###Interaction effects: stimulation (stim - dmso) vs disease/vaccine  
-   
+####[CSP: M0](primary_interaction_M0_CSP.html)  
+####[HBS: M0](primary_interaction_M0_HBS.html)
+####[AMA1: M0](primary_interaction_M0_AMA.html)
+
 ####[CSP: M3](primary_interaction_M3_CSP.html)  
 ####[HBS: M3](primary_interaction_M3_HBS.html)
+####[AMA1: M3](primary_interaction_M3_AMA.html)
+
+###Bagamoyo site specific analysis  
+####[Longitudinal and antigen specific analysis](primary_Bagamoyo_GSEA.html)
 
 ###Secondary  
   
 ####[GSEA: time*disease interaction group](secondary_DMSO_time_disease.html)  
-####[GSEA: vaccine*disease interaction for time-point M3](secondary_vaccine_disease_interaction.html)
+####[GSEA: vaccine*disease interaction for time-point M3](secondary_vaccine_disease_interaction.html)  
+####[Disease effect: all RTS,S samples DMSO](secondary_disease_all_samples.html)  
+  
+###Analysis  
+####[DMSO: M3 GSEA analysis](analysis_DMSO_M3_GSEA.html)  
+####[GSEA stimulation M3](analysis_GSEA_M3_stimulations.html)
+
+###Combinatory  
+  
+####[Compare Vahey, Kazmin data sets](combine_GSEA.html)
 
 ###Exploratory  
   
@@ -70,5 +86,7 @@ This project aims to understand characteristics of the RTS,S vaccine and identif
 ####[ICS CD8 HBS: correlation with RNASeq gene expression](exploratory_ICS_CD8_HBS.html)
 
 ####[ICS CD4 magnitude difference (truncated): correlation with RNASeq gene expression](exploratory_ICS_Mag.html)
-
+  
+###Quality Assurance  
+####[Location Bias](exploratory_location_bias.html)
 

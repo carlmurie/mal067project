@@ -26,6 +26,7 @@ library(survival)   ## clogit
 library(GSEABase)
 library(tidyverse)
 library(gridExtra)
+library(DT)
 
 source(here("code", "mal_utilities.R"))
 ```
@@ -48,7 +49,7 @@ btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
 
 ```{r getmorevars}
 pfs <- readRDS(here("data/PRIMARY_CD4_MAGNITUDE.rds"))
-stim <- "csp"
+stim <- "dmso"
 ```
 
 ```{r format}
@@ -63,46 +64,87 @@ pData(mal067_eset) %>%
   overlap
 
 prune_meta <- mal067_voom[,overlap]
-prune_meta$targets <- prune_meta$targets[,c("col_id", "case", "vaccine", "sid",
-                                            "pid", "visit", "stimulation", "age")]
+prune_meta$targets <- prune_meta$targets[,c("col_id", "case", "vaccine", "sid", "visit", "stimulation", "plate", "malaria_status")]
 
 ## filter ics data to reduce size
 pfs %>%
   dplyr::rename(sid=PTID,
                 visit=VISITNO) %>%
-  select(c(sid, visit, difference_trunc)) ->
+  select(c(sid, visit, difference_trunc)) %>%
+   dplyr::inner_join(prune_meta$targets, by=c("sid", "visit"))->
   data
+
+pfs_set <- prune_meta[,data$col_id]
+pfs_set$targets <- data
+
+if(sum(colnames(pfs_set) != pfs_set$targets$col_id) > 0) {
+  stop("GSEA join is screwed up")
+}
+
+fdr_cut <- 0.2
+coef <- "difference_trunc"
+form <- "~plate+difference_trunc"
 ```
 
-```{r read_child}
-## read in child file for rendering
-child1 <- here::here("analysis/children", "exp_Diff_RNA_Cor.Rmd")
-childy <- read_file(child1)
+ 
+##Sample size  
+  
+```{r samples}
+pfs_set$targets %>%
+  countSampleSizes("visit", c("vaccine", "malaria_status", "stimulation")) %>%
+  headerKable(labels=c("vaccine", "malaria", "stimulation"),
+              levels=c(2,2,4))
 ```
 
+#GSEA analysis of CD4 magnitudes {.tabset .tabset-fade .tabset-pills}
 
-# Correlate Polyfunctionality Score (PFS) to RNASeq gene expression   
+##M0
+
+```{r m0} 
+
+voom_m0 <- pfs_set[,pfs_set$targets$visit=="M0"]
+
+## run camera
+des <- model.matrix(formula(form), voom_m0$targets)
+cam <- as_tibble(camera(voom_m0, btm_ind, design=des,
+                              contrast=coef),
+                       rownames="geneset")
+ cam %>%
+    mutate(PValue=signif(PValue, 3)) %>%
+    mutate(FDR=signif(FDR, 3)) %>%
+   filter(FDR <= fdr_cut) %>%
+   datatable()
+ 
+ summ <- sum(cam$FDR <= fdr_cut)
+```
   
-Only patients given the RTS,S vaccine are included in the analysis.  
+##M3
+
+```{r m3} 
+
+voom_m3 <- pfs_set[,pfs_set$targets$visit=="M3"]
+
+## run camera
+des <- model.matrix(formula(form), voom_m3$targets)
+cam <- as_tibble(camera(voom_m3, btm_ind, design=des,
+                              contrast=coef),
+                       rownames="geneset")
+ cam %>%
+    mutate(PValue=signif(PValue, 3)) %>%
+    mutate(FDR=signif(FDR, 3)) %>%
+   filter(FDR <= fdr_cut) %>%
+   datatable()
+ 
+ summ <- c(summ, sum(cam$FDR <= fdr_cut))
+```
   
-```{r}
-sigSetName <-  "enriched in monocytes (I) (M4.15)"
+#Summary
+  
+```{r summ}
+
+outie <- data.frame(number=summ)
+rownames(outie) <- c("M0", "M3")
+headerKable(outie, title="number of significant gsea sets")
 ```
 
-`r paste(knit_child(text = childy), collapse = '\n')`
-</br>
-  
-```{r}
-sigSetName <- "enriched in myeloid cells and monocytes (M81)"
-```
-  
-`r paste(knit_child(text = childy), collapse = '\n')`
-</br>
-  
-```{r}
-sigSetName <- "NK cell surface signature (S1)"
-```
-
-`r paste(knit_child(text = childy), collapse = '\n')`
-</br>
 

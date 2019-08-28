@@ -1,0 +1,170 @@
+---
+title: "GSEA Interaction effects: stimulation vs disease/vaccine"
+subtitle: "HBS: M3"
+author: "Carl Murie"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: html_document
+---
+
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r load-packages}
+library(RNASeqUtilities)
+library(Biobase)
+library(GSEABase)
+library(DT)
+library(limma)
+library(tidyverse)
+library(magrittr)
+library(here)
+
+source(here("code", "mal_utilities.R"))
+```
+
+
+```{r load-data}
+library(mal067data)
+data(mal067_eset)
+meta_dt <- as.tibble(pData(mal067_eset))
+```
+
+
+```{r set-parameters}
+
+## parameters set by parent: stim, time
+
+fdr_cut <- 0.2
+p_cut <- 0.01
+min_gene_set <- 5
+coef <- "stimulationcsp:malaria_status1"
+form_dis <- "~plate + total_reads + age_weeks + stimulation*malaria_status"
+
+## select subset of results from 'topTable' results
+colInd <- c("logFC", "P.Value", "adj.P.Val")
+
+## store number of significant gene-sets for each comparison
+summary_tab <- NULL
+```
+
+```{r gsea_setup}
+## set up GSEA analysis
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+```
+
+#Test disease effect for both visits
+
+Compare samples from subjects who contracted malaria vs those subjects who didnt' for M0 and M3.
+
+**disease linear model:** `r form_dis`  
+**disease linear model coefficient** `coef`
+**disease filtering   :** rtss, both age groups, dmso and hbs 
+
+```{r disease_data}
+## disease: select subset of expressionSet
+meta_dt %>% 
+  filter(stimulation == "dmso" | stimulation == "csp") %>% 
+  filter(vaccine == "rtss") %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation/case levels
+mal_dis <- mal067_eset[, sample_vac] 
+mal_dis$stimulation <- fct_drop(mal_dis$stimulation)
+mal_dis$case <- fct_drop(mal_dis$case)
+```
+
+##Sample sizes  
+  
+```{r sample_size}
+## get sample sizes
+countSampleSizes(pData(mal_dis), "visit", 
+    c("stimulation", "vaccine", "malaria_status", "age")) %>%
+headerKable(labels=c("stimulation", "vaccine", "malaria_status", "age"), levels=c(2,2,2,2), 
+            title="disease sample size")
+```
+
+##M0  {.tabset .tabset-fade .tabset-pills}   
+
+###GSEA
+  
+```{r m0}
+
+pData(mal_dis) %>%
+  filter(visit=="M0") %$%
+  col_id ->
+  m0_ind
+
+mal_m0 <- mal_dis[,m0_ind]
+des_m0 <- model.matrix(formula(form_dis), mal_m0)
+cam_m0 <- as.tibble(camera(mal_m0, btm_ind, design=des_m0, contrast=coef),
+                       rownames="geneset")
+num_m0 <- sum(cam_m0$FDR <= fdr_cut)
+
+cam_m0 %>%
+  filter(FDR <= fdr_cut) %>%
+  datatable() %>%
+  formatRound(columns=c('PValue', 'FDR'), digits=3)
+
+```
+
+###DGE  
+  
+```{r m0_dge}
+
+ fit1 <- lmFit(mal_m0, des_m0)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ tmp <- topTable(fit2, number=Inf, coef=coef, sort="P")
+ sig <- signif(tmp[tmp$adj.P.Val <= fdr_cut, colInd], 3)
+ colnames(sig) <- c("log FC",  "P.value", "FDR")
+ summ <- nrow(sig)
+
+ datatable(sig)
+
+```
+
+##M3  
+  
+```{r m3}
+
+pData(mal_dis) %>%
+  filter(visit=="M3") %$%
+  col_id ->
+  m3_ind
+
+mal_m3 <- mal_dis[,m3_ind]
+des_m3 <- model.matrix(formula(form_dis), mal_m3)
+cam_m3 <- as.tibble(camera(mal_m3, btm_ind, design=des_m3, contrast=coef),
+                       rownames="geneset")
+num_m3 <- sum(cam_m0$FDR <= fdr_cut)
+
+cam_m3 %>%
+  filter(FDR <= fdr_cut) %>%
+  datatable() %>%
+  formatRound(columns=c('PValue', 'FDR'), digits=3)
+
+```
+
+###DGE  
+  
+```{r m3_dge}
+
+ fit1 <- lmFit(mal_m3, des_m3)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ tmp <- topTable(fit2, number=Inf, coef=coef, sort="P")
+ sig <- signif(tmp[tmp$adj.P.Val <= fdr_cut, colInd], 3)
+ colnames(sig) <- c("log FC",  "P.value", "FDR")
+ summ <- nrow(sig)
+
+ if(summ >0) {
+   datatable(sig)
+ } else {
+   cat("No significant gene sets found\n")
+ }
+
+```

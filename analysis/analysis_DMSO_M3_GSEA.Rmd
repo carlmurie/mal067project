@@ -1,0 +1,215 @@
+---
+title: "DMSO M3 GSEA analysis"
+author: "Carl Murie"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: html_document
+---
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r packages}
+library(readr)
+library(RNASeqUtilities)
+library(Biobase)
+library(magrittr)
+library(here)
+library(heatmap3)
+library(DT)
+library(GSEABase)
+library(limma)
+library(tidyverse)
+library(data.table)
+library(RColorBrewer)
+```
+
+```{r load}
+## load mal067 data
+library(mal067data)
+
+## get gsea for vaccine and disease solo comparisons
+vac <- read_csv(paste0(here("output/"), "vaccine_both_dmso_M3.csv"))
+dis <- read_csv(paste0(here("output/"), "disease_both_dmso_M3.csv"))
+
+## get gsea and deg for interaction comparison
+vc_deg <- read_csv(here("output/DMSO_M3_vaccine_disease_interaction_DEG.csv"))
+vc_gsea <- read_csv(here("output/DMSO_M3_vaccine_disease_interaction.csv"))
+
+fdr_cut <- 0.2
+p_cut <- 0.05
+```
+
+```{r genesets}
+## set up GSEA analysis
+min_gene_set <- 5
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+```
+
+
+#Analyse significant vaccine comparison gene sets and compare to the disease comparison results  
+  
+## comparison filtering  
+vaccine: DMSO, M3, rtss and comparator samples  
+disease: DMSO M3, only case/control samples  
+  
+FDR cutoff is `r fdr_cut`
+
+```{r parse}
+
+## extract significant gene sets and sign pValue
+vac %>%
+  filter(FDR <= fdr_cut) %>%
+  mutate(sign=as.numeric(plyr::mapvalues(Direction,
+                              from=c("Up", "Down"),
+                              to=c(1,-1)))) %>%
+  mutate(sign_log10_Pval=-log10(PValue)*sign) ->
+  map_vac
+
+ dis %>%
+    filter(geneset %in% map_vac$geneset) %>%
+    mutate(FDR = p.adjust(PValue, method="BH")) %>%
+    mutate(sign=as.numeric(plyr::mapvalues(Direction,
+                              from=c("Up", "Down"),
+                              to=c(1,-1)))) %>%
+  mutate(sign_log10_Pval=-log10(PValue)*sign)  ->
+  map_dis
+ 
+```
+  
+##GSEA results  {.tabset .tabset-fade .tabset-pills}
+  
+###vaccine
+  
+`r dplyr::select(map_vac, -c("sign", "sign_log10_Pval")) %>%  datatable() %>% formatRound(columns=c('PValue', 'FDR'), digits=3)`
+  
+###disease  
+  
+`r select(map_dis, -c("sign", "sign_log10_Pval")) %>%  datatable() %>% formatRound(columns=c('PValue', 'FDR'), digits=3)`  
+  
+## Heat map  
+  
+Heat map of significant gene sets from the vaccine comparison and the associated results from the disease comparison.  TBA genesets were removed.
+  
+```{r map}
+map_vac %>%
+  dplyr::select(c(geneset, sign_log10_Pval)) %>%
+  filter(!str_detect(geneset, "TBA")) %>%
+  dplyr::inner_join(map_dis[,c("geneset", "sign_log10_Pval")], by="geneset") %>%
+  dplyr::rename(vaccine=sign_log10_Pval.x,
+                disease=sign_log10_Pval.y) %>%
+ column_to_rownames("geneset") %>%
+  as.matrix() ->
+  map_out
+
+heatmap3(map_out, Rowv=TRUE, Colv=NA, scale="none", balanceColor=TRUE, 
+         cexRow=0.85 ,cexCol=1.5, showRowDendro=FALSE, 
+         col=colorRampPalette(c("firebrick3", "white", "navy"))(1024))
+```
+
+##Significant disease comparison gene sets from down-selected significant vaccine comparison   {.tabset .tabset-fade .tabset-pills}
+  
+```{r voom}
+all_sig_genes <- NULL
+
+## voom data for gene specific visualization
+pData(mal067_eset)  %>%
+   filter(stimulation == "dmso") %>% 
+  filter(visit == "M3" | visit =="M0") %$%
+  ##filter(visit == "M3") %$%
+  col_id ->
+  sample_vac
+
+mal_eset <- mal067_eset[, sample_vac] 
+mal_eset$stimulation <- fct_drop(mal_eset$stimulation)
+
+form <- "~plate + total_reads + age_weeks + vaccine*malaria_status"
+des <- model.matrix(formula(form), mal_eset)
+mal_voom <- voom(mal_eset, design=des)
+
+## select significant disease gene sets
+map_dis %>%
+  filter(FDR <= fdr_cut) ->
+  sig_dis
+```
+  
+`r select(sig_dis, -c("sign", "sign_log10_Pval")) %>%  datatable() %>% formatRound(columns=c('PValue', 'FDR'), digits=3)`  
+
+```{r read_child}
+## read in child file for rendering
+child1 <- here::here("analysis/children", "gsea_plot_genes.Rmd")
+childy <- read_file(child1)
+```
+
+
+```{r M11}
+set <- map_dis$geneset[1]
+
+```
+  
+`r paste(knit_child(text = childy), collapse = '\n')`
+</br>
+    
+```{r M81}
+set <- map_dis$geneset[2]
+```
+  
+`r paste(knit_child(text = childy), collapse = '\n')`
+</br>
+
+```{r M4.3}
+set <- map_dis$geneset[3]
+```
+  
+`r paste(knit_child(text = childy), collapse = '\n')`
+</br>
+  
+```{r M174}
+set <- map_dis$geneset[4]
+```
+  
+`r paste(knit_child(text = childy), collapse = '\n')`
+</br>
+  
+  
+#All driver genes  
+  
+```{r collect_genes}
+dups <- all_sig_genes[duplicated(all_sig_genes)]
+siggs <- all_sig_genes[!duplicated(all_sig_genes)]
+```
+
+There are a total of `r length(siggs)` significant genes (Pvalue <= `r p_cut`) from the significant genesets for the down-selected disease comparison.  Two genes were found twice (`r dups`)
+  
+`r matrix(siggs, ncol=5) %>% headerKable()`  
+  
+##Heatmp of driver genes cell type distribution
+
+The paper below estimated gene specific cell subtype distributions from 3000 gene expression studies.
+
+E Becht et al. Estimating the population abundance of tissue-infiltrating immune and stromal cell populations using gene expression, 2016
+
+Here we input the set of driver genes to investigate which cells this gene is likely to be expressed in.
+
+```{r driver}
+
+load("/fh/fast/gottardo_r/yyy_shared-single-cell/markerBenchmark.RData")
+
+if(FALSE) {
+## aggregate assay samples and label by cell type
+   mediods=do.call(rbind,lapply(split(as.data.frame(t(xp_133P2)),D_133P2[colnames(xp_133P2),"Denomination"]),function(x){apply(x,2,median)})) 
+saveRDS(medoids, file=paste0(here("output/cell_dist_mediods")))
+} else {
+ mediods <- readRDS(file=paste0(here("output/cell_dist_mediods")))
+}
+
+meds <- mediods[,siggs]
+
+heatmap3(meds, Rowv=TRUE, Colv=TRUE, scale="none", balanceColor=FALSE, 
+         cexRow=0.65 ,cexCol=1.25, showRowDendro=FALSE, showColDendro=FALSE,
+          col=brewer.pal(9, "YlOrRd"))
+          ##col=colorRampPalette(c("yellow", "white", "purple"))(1024))
+```

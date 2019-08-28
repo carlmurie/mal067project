@@ -25,6 +25,7 @@ library(data.table)
 library(survival)   ## clogit
 library(GSEABase)
 library(tidyverse)
+library(DT)
 
 source(here("code", "mal_utilities.R"))
 ```
@@ -62,26 +63,31 @@ load("data/m067_seattle_data.RData")
 # CEVAC and RNASeq analysis  
   
 Database of CEVAC contains 2 new variables: log_val.Anti-CS (IgG CSP-NANP titers) and  log_val.HBV.S AB (IgG HBsAg titers), as log10 of the titers.
-  
+
+csp: IgG CSP-NANP titers  
+hbs: IgG HBsAg titers  
+   
 ```{r iavi} 
 
 ## format rnaseq meta data
 meta_dt %>%
-  filter(stimulation=="csp" | stimulation=="hbs") %>%
+  ##filter(stimulation=="csp" | stimulation=="hbs") %>%
+  filter(stimulation=="dmso") %>%
   mutate(stimulation = as.character(fct_drop(stimulation))) %>%
   filter(vaccine=="rtss") %>%
   mutate(visit=as.character(visit)) %>%
-  dplyr::select(pid, visit, col_id, case, malaria_status, match, 
-                vaccine, stimulation, sex) ->
+  dplyr::select(pid, visit, col_id, case, malaria_status,
+                match, vaccine, plate, total_reads, 
+                age_weeks, sex) ->
   meta_cyto
 
 ## format CEVAC data
 l_df_rna[[3]] %>%
-  rename(csp="log_val.Anti-CS") %>%
-  rename(hbs= "log_val.HBV.S AB") %>%
-  melt(measure=c("csp", "hbs")) %>%
-  rename(stimulation=variable) %>%
-  rename(log10_score=value) %>%
+  dplyr::rename(CSP_NANP="log_val.Anti-CS") %>%
+  dplyr::rename(HBsAg= "log_val.HBV.S AB") %>%
+  melt(measure=c("CSP_NANP", "HBsAg")) %>%
+  dplyr::rename(stimulation=variable) %>%
+  dplyr::rename(log10_score=value) %>%
   filter(!is.na(log10_score)) %>%
   mutate(stimulation=as.character(stimulation))->
   df_rna
@@ -97,30 +103,24 @@ countSampleSizes(df_rna, "visit", "stimulation") %>%
 ##Plots of new variables
 
 ```{r plot}
-ggplot(df_rna, aes(x=1:nrow(df_rna), y=log10_score)) + geom_point() +
-  facet_wrap(~visit+stimulation) + xlab("order")
+ggplot(df_rna, aes(x=visit, y=log10_score)) +
+  geom_boxplot() + geom_point() + geom_jitter() +
+  facet_wrap(~stimulation, scales="free") + xlab("order")
 ```
 
 ```{r}
 ## join cevac data with rnaseq meta data
-dups <- !duplicated(paste(meta_cyto$visit,meta_cyto$pid))
-dplyr::inner_join(df_rna, meta_cyto, by=c("pid", "visit", "stimulation")) ->
+dplyr::inner_join(df_rna, meta_cyto, by=c("pid", "visit")) ->
   cyto
-
-## check that total sample size is correct
-total <- length(intersect(paste(meta_cyto$visit,meta_cyto$pid,
-                                meta_cyto$stimulation),
-                          paste(df_rna$visit, df_rna$pid, df_rna$stimulation))) 
-if(total != nrow(cyto)) {stop("Sample size is not correct")}
-
 ```
 
 ## Sample size  
   
-There are only 3 samples at time point M0 after removing the comparator samples so only the M3 time point will be analysed.
+There are only 3 samples at time point M0 after joining the RNASeq and titers data so only the M3 time point will be analysed.
   
 ```{r samplesize1}
- countSampleSizes(cyto, "visit", c("stimulation", "vaccine", "case")) %>%
+ countSampleSizes(cyto, "visit", 
+                  c("stimulation", "vaccine", "case")) %>%
   headerKable()
 ```
 
@@ -135,9 +135,7 @@ cyto %>%
   filter(case != "neither") %>%
   mutate(case = fct_drop(case)) %>%                    ## remove "neither" level
   ## clogit needs case as a binary value (0,1)
-  mutate(case_logit=as.numeric(plyr::mapvalues(as.character(case), 
-                                               from=c("control", "case"),
-                                               to=c(0,1)))) %>%
+  mutate(case_logit=as.numeric(plyr::mapvalues(as.character(case), from=c("control", "case"), to=c(0,1)))) %>%
   filter(visit=="M3") %>%
   mutate(visit = fct_drop(visit)) %>%
   as.data.table() ->
@@ -147,12 +145,11 @@ cyto %>%
 ###Sample size  
   
 ```{r sample3} 
-countSampleSizes(cyto_logit, "visit", c("case", "vaccine")) %>%
+countSampleSizes(cyto_logit, "stimulation", c("case", "vaccine")) %>%
   headerKable()
 ```
 
 ```{r output}
-
  ##x <- clogit(case_logit~sex+cterm+strata(match), data=cyto_logit[visit=="M0"])
 
  pvals <- cyto_logit[,summary(clogit(case_logit~sex+log10_score+strata(match)))$coefficient["log10_score", 5], by=.(stimulation)]
@@ -181,252 +178,95 @@ colnames(pvals)[2] <- "pValue"
  print(gg_plott)
 ```
   
-##Correlations between CEVAC and RNASeq gene expression for significant GSEA gene-sets  {.tabset .tabset-fade .tabset-pills}  
+#GSEA analysis
+
+The titers were drawn from only DMSO samples.  
   
-  
-```{r sig1}
-sigSetName <- "enriched in myeloid cells and monocytes (M81)"
-sigSet <- btm_ind[[sigSetName]]
+The M0 visit will not be analysed as there are only 3 samples.   
+
+```{r gsea_setup}
+cyto %>%
+  filter(visit == "M3") %>%
+  dplyr::rename(titers="stimulation") ->
+  cyto_m3 
+
+voom_gsea <- mal067_voom[,cyto_m3$col_id]
+targ <- voom_gsea$targets
+voom_gsea$targets <- cyto_m3
+if(sum(colnames(voom_gsea) != voom_gsea$targets$col_id) > 0) {
+  stop("GSEA titer join is screwed up")
+}
+
+## model definition
+form <- "~plate + total_reads + age_weeks + titers"
+coef <- "log10_score"
+fdr_cut <- 0.2
 ```
   
-###`r sigSetName` | IAVA vs RNASeq gene expression 
+linear model: `r form`  
+coefficient: `r coef`  
+FDR cutoff <= `r fdr_cut`  
   
-Correlations greater than 0.2 or less than -0.2 are in red.  
+##Sample sizes  
   
-```{r sig1_analysis}
-
-rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
-dplyr::inner_join(cyto, rna_DT, by=c("col_id"="Var2")) %>%
-  filter(visit=="M3") %>%
-  rename(gene=Var1) %>%
-  data.table() ->
-  all_DT
-
-corAll <- all_DT[,.(pearson=signif(cor(value, log10_score,
-                                            use="pairwise.complete.obs"), 3),
-              spearman=signif(cor(value, log10_score, method="spearman",
-                                  use="pairwise.complete.obs"), 3)),
-              by=stimulation]
-
-corGene <- all_DT[,.(pearson=signif(cor(value, log10_score,
-                                            use="pairwise.complete.obs"), 3),
-              spearman=signif(cor(value, log10_score, method="spearman",
-                                  use="pairwise.complete.obs"), 3)),
-              by=.(gene, stimulation)]
-
-corAll %>%
-mutate(pearson=cell_spec(pearson, 
-                         color = ifelse(pearson >= 0.2, "red", "black"))) %>%
-mutate(spearman=cell_spec(spearman, 
-                         color = ifelse(spearman >= 0.2, "red", "black"))) %>%
-headerKable(title="all genes together")
-
+```{r samps}
+countSampleSizes(voom_gsea$targets, "titers", 
+            c("visit", "vaccine", "malaria_status")) %>%
+  headerKable(c("visit", "vaccine", "disease"),
+              levels=c(1,2,2))
 ```
 
-####Correlation plots  
+##M3 {.tabset .tabset-fade .tabset-pills}
+
+###IgG CSP-NANP titers  
   
-```{r corplots}
+```{r csp}
+csp_ind <- voom_gsea$targets$titers=="CSP_NANP"
+voom_csp <- voom_gsea[,csp_ind]
 
-melt(corGene, measure=c("pearson", "spearman")) %>%
-  ggplot(aes(x=stimulation, y=value)) + geom_boxplot() + geom_point()  +
-  ylim(-1,1) + ggtitle("CEVAC") + facet_wrap(~variable) + ylab("correlation") +
-  geom_hline(yintercept=c(-0.2, 0.2), linetype="dashed", color = "red")
-
-```
-
-####Correlation tables  
-  
-Correlations greater than 0.2 or less than -0.2 are in red.   
-  
-```{r cortable}
-
-corGene %>%
-  select(c(gene, stimulation, spearman)) %>%
-  spread(key="stimulation", value=c("spearman")) %>%
-  mutate(csp=cell_spec(csp, color = ifelse(csp >= 0.2 | csp <= -0.2, 
-                                        "red", "black")))%>%
-  mutate(hbs=cell_spec(hbs, color = ifelse(hbs >= 0.2 | hbs <= -0.2, 
-                                        "red", "black"))) -> 
-  spear
-
-corGene %>%
-  select(c(gene, stimulation, pearson)) %>%
-  spread(key="stimulation", value=c("pearson")) %>%
-  mutate(csp=cell_spec(csp, color = ifelse(csp >= 0.2 | csp <= -0.2, 
-                                        "red", "black")))%>%
-  mutate(hbs=cell_spec(hbs, color = ifelse(hbs >= 0.2 | hbs <= -0.2, 
-                                        "red", "black"))) -> 
-  pear
-
-  cbind(pear, spear[,-1]) %>%
-    headerKable() %>%
-    add_header_above(c(" "=1, "pearson"=2, "spearman"=2))
-  
-```
-
-
-
-
-```{r sig2}
-sigSetName <- "NK cell surface signature (S1)"
-sigSet <- btm_ind[[sigSetName]]
-```
+ form <- "~plate + total_reads + age_weeks + log10_score"
+ des <- model.matrix(formula(form), voom_csp$targets)
  
-###`r sigSetName` | IAVA vs RNASeq gene expression 
-  
-Correlations greater than 0.2 or less than -0.2 are in red.  
-  
-```{r sig1_analysis2}
+## run camera
+ cam_vac <- as_tibble(camera(voom_csp, btm_ind, design=des,
+                              contrast=coef),
+                       rownames="geneset")
+ cam_vac %>%
+    mutate(PValue=signif(PValue, 3)) %>%
+    mutate(FDR=signif(FDR, 3)) %>%
+   filter(FDR <= fdr_cut) %>%
+   datatable()
 
-rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
-dplyr::inner_join(cyto, rna_DT, by=c("col_id"="Var2")) %>%
-  filter(visit=="M3") %>%
-  rename(gene=Var1) %>%
-  data.table() ->
-  all_DT
-
-corAll <- all_DT[,.(pearson=signif(cor(value, log10_score,
-                                            use="pairwise.complete.obs"), 3),
-              spearman=signif(cor(value, log10_score, method="spearman",
-                                  use="pairwise.complete.obs"), 3)),
-              by=stimulation]
-
-corGene <- all_DT[,.(pearson=signif(cor(value, log10_score,
-                                            use="pairwise.complete.obs"), 3),
-              spearman=signif(cor(value, log10_score, method="spearman",
-                                  use="pairwise.complete.obs"), 3)),
-              by=.(gene, stimulation)]
-
-corAll %>%
-mutate(pearson=cell_spec(pearson, 
-                         color = ifelse(pearson >= 0.2, "red", "black"))) %>%
-mutate(spearman=cell_spec(spearman, 
-                         color = ifelse(spearman >= 0.2, "red", "black"))) %>%
-headerKable(title="all genes together")
-
+ summ <- sum(cam_vac$FDR <= fdr_cut)
+ 
 ```
-
-####Correlation plots  
   
-```{r corplots2}
+###IgG HBsAg titers  
+  
+```{r hbs}
+csp_ind <- voom_gsea$targets$titers=="HBsAg"
+voom_csp <- voom_gsea[,csp_ind]
 
-melt(corGene, measure=c("pearson", "spearman")) %>%
-  ggplot(aes(x=stimulation, y=value)) + geom_boxplot() + geom_point()  +
-  ylim(-1,1) + ggtitle("CEVAC") + facet_wrap(~variable) + ylab("correlation") +
-  geom_hline(yintercept=c(-0.2, 0.2), linetype="dashed", color = "red")
+ form <- "~plate + total_reads + age_weeks + log10_score"
+ des <- model.matrix(formula(form), voom_csp$targets)
+ 
+## run camera
+ cam_vac <- as_tibble(camera(voom_csp, btm_ind, design=des,
+                              contrast=coef),
+                       rownames="geneset")
+ cam_vac %>%
+    mutate(PValue=signif(PValue, 3)) %>%
+    mutate(FDR=signif(FDR, 3)) %>%
+   filter(FDR <= fdr_cut) %>%
+   datatable()
 
+ summ <- c(summ, sum(cam_vac$FDR <= fdr_cut))
+```  
+  
+##Summary
+  
+```{r summ}
+outie <- data.frame(number=summ)
+rownames(outie) <- c("CSP-NANP", "HBsAg")
+headerKable(outie, title="number of significant gsea sets")
 ```
-
-####Correlation tables  
-  
-Correlations greater than 0.2 or less than -0.2 are in red.   
-  
-```{r cortable2}
-
-corGene %>%
-  select(c(gene, stimulation, spearman)) %>%
-  spread(key="stimulation", value=c("spearman")) %>%
-  mutate(csp=cell_spec(csp, color = ifelse(csp >= 0.2 | csp <= -0.2, 
-                                        "red", "black")))%>%
-  mutate(hbs=cell_spec(hbs, color = ifelse(hbs >= 0.2 | hbs <= -0.2, 
-                                        "red", "black"))) -> 
-  spear
-
-corGene %>%
-  select(c(gene, stimulation, pearson)) %>%
-  spread(key="stimulation", value=c("pearson")) %>%
-  mutate(csp=cell_spec(csp, color = ifelse(csp >= 0.2 | csp <= -0.2, 
-                                        "red", "black")))%>%
-  mutate(hbs=cell_spec(hbs, color = ifelse(hbs >= 0.2 | hbs <= -0.2, 
-                                        "red", "black"))) -> 
-  pear
-
-  cbind(pear, spear[,-1]) %>%
-    headerKable() %>%
-    add_header_above(c(" "=1, "pearson"=2, "spearman"=2))
-  
-```
-
-
-
-```{r sig3}
-sigSetName <- "enriched in monocytes (I) (M4.15)"
-sigSet <- btm_ind[[sigSetName]]
-```
-
-###`r sigSetName` | IAVA vs RNASeq gene expression 
-  
-Correlations greater than 0.2 or less than -0.2 are in red.  
-  
-```{r sig1_analysis3}
-
-rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
-dplyr::inner_join(cyto, rna_DT, by=c("col_id"="Var2")) %>%
-  filter(visit=="M3") %>%
-  rename(gene=Var1) %>%
-  data.table() ->
-  all_DT
-
-corAll <- all_DT[,.(pearson=signif(cor(value, log10_score,
-                                            use="pairwise.complete.obs"), 3),
-              spearman=signif(cor(value, log10_score, method="spearman",
-                                  use="pairwise.complete.obs"), 3)),
-              by=stimulation]
-
-corGene <- all_DT[,.(pearson=signif(cor(value, log10_score,
-                                            use="pairwise.complete.obs"), 3),
-              spearman=signif(cor(value, log10_score, method="spearman",
-                                  use="pairwise.complete.obs"), 3)),
-              by=.(gene, stimulation)]
-
-corAll %>%
-mutate(pearson=cell_spec(pearson, 
-                         color = ifelse(pearson >= 0.2, "red", "black"))) %>%
-mutate(spearman=cell_spec(spearman, 
-                         color = ifelse(spearman >= 0.2, "red", "black"))) %>%
-headerKable(title="all genes together")
-
-```
-
-####Correlation plots  
-  
-```{r corplots3}
-
-melt(corGene, measure=c("pearson", "spearman")) %>%
-  ggplot(aes(x=stimulation, y=value)) + geom_boxplot() + geom_point()  +
-  ylim(-1,1) + ggtitle("CEVAC") + facet_wrap(~variable) + ylab("correlation") +
-  geom_hline(yintercept=c(-0.2, 0.2), linetype="dashed", color = "red")
-
-```
-
-####Correlation tables  
-  
-Correlations greater than 0.2 or less than -0.2 are in red.   
-  
-```{r cortable3}
-
-corGene %>%
-  select(c(gene, stimulation, spearman)) %>%
-  spread(key="stimulation", value=c("spearman")) %>%
-  mutate(csp=cell_spec(csp, color = ifelse(csp >= 0.2 | csp <= -0.2, 
-                                        "red", "black")))%>%
-  mutate(hbs=cell_spec(hbs, color = ifelse(hbs >= 0.2 | hbs <= -0.2, 
-                                        "red", "black"))) -> 
-  spear
-
-corGene %>%
-  select(c(gene, stimulation, pearson)) %>%
-  spread(key="stimulation", value=c("pearson")) %>%
-  mutate(csp=cell_spec(csp, color = ifelse(csp >= 0.2 | csp <= -0.2, 
-                                        "red", "black")))%>%
-  mutate(hbs=cell_spec(hbs, color = ifelse(hbs >= 0.2 | hbs <= -0.2, 
-                                        "red", "black"))) -> 
-  pear
-
-  cbind(pear, spear[,-1]) %>%
-    headerKable() %>%
-    add_header_above(c(" "=1, "pearson"=2, "spearman"=2))
-  
-```
-
-

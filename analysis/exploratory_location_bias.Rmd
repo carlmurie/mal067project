@@ -1,0 +1,108 @@
+---
+title: "Location Bias"
+author: "Carl Murie and Raphael Gottardo"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   BiocStyle::html_document:
+    theme: lumen
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r packages}
+library(readr)
+library(RNASeqUtilities)
+library(Biobase)
+library(GSEABase)
+library(DT)
+library(limma)
+library(tidyverse)
+library(magrittr)
+library(here)
+library(gridExtra)
+
+source(here("code", "mal_utilities.R"))
+```
+
+```{r load-data}
+library(mal067data)
+data(mal067_eset)
+meta_dt <- as_tibble(pData(mal067_eset))
+
+form <- "~plate + total_reads + age_weeks + site"
+coeff <- "siteMANHICA"
+
+```
+
+
+# Location bias  
+  
+There is a confound between age and location where Bagamoyo has only subjects from the old age group and Manhica has mostly samples from the young age group.  
+  
+Test the old age group for location effect across Bagamoya and Manhica for time points M0 and M3.
+
+## Sample size  
+  
+  
+```{r}
+
+## select only old age group
+meta_dt %>% 
+  filter(age == "old") %$% 
+  col_id ->
+  sample_vac
+
+# generate subset data and drop extra stimulation levels
+mal_vac <- mal067_eset[, sample_vac] 
+mal_vac$age <- fct_drop(mal_vac$age)
+
+## get sample sizes
+countSampleSizes(pData(mal_vac), "visit", 
+                 c("site", "vaccine", "case", "age")) %>%
+headerKable(labels=c("site", "vaccine", "case", "age"), levels=c(2,2,3,1), 
+            title="old age group sample size")
+
+```
+
+
+##Visit M0  
+  
+```{r m0}
+mal <- mal_vac[,mal_vac$visit=="M0"]
+design <- model.matrix(formula(form), mal)
+mal_voom <- voom(mal, design=design)
+
+fit1 <- lmFit(mal, design)
+fit2 <- eBayes(fit1, trend=FALSE)
+tmp_deg <- topTable(fit2, number=Inf, coef=coeff, sort="P")
+
+graphs=createDEGGraphs(tmp_deg, title="M0")
+grid.arrange(grobs=graphs, nrow=1)
+```
+
+##Visit M3  
+  
+```{r m3}
+mal <- mal_vac[,mal_vac$visit=="M3"]
+design <- model.matrix(formula(form), mal)
+mal_voom <- voom(mal, design=design)
+
+fit1 <- lmFit(mal, design)
+fit2 <- eBayes(fit1, trend=FALSE)
+tmp_deg <- topTable(fit2, number=Inf, coef=coeff, sort="P")
+
+graphs <- createDEGGraphs(tmp_deg, title="M3")
+grid.arrange(grobs=graphs, nrow=1)
+```
+
+
+
+
+

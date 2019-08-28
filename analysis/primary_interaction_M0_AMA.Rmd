@@ -1,0 +1,212 @@
+---
+title: "GSEA Interaction effects: stimulation vs disease/vaccine"
+subtitle: "CSP: M3"
+author: "Carl Murie and Raphael Gottardo"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   BiocStyle::html_document:
+    theme: lumen
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r packages}
+library(readr)
+```
+
+```{r paramters}
+## test interaction effects of stim-dmso and vaccine/disease
+
+stim="ama1"
+time="M0"
+```
+
+
+```{r load-packages}
+library(RNASeqUtilities)
+library(Biobase)
+library(GSEABase)
+library(DT)
+library(limma)
+library(tidyverse)
+library(magrittr)
+library(here)
+
+source(here("code", "mal_utilities.R"))
+```
+
+```{r load-data}
+library(mal067data)
+data(mal067_eset)
+meta_dt <- as.tibble(pData(mal067_eset))
+```
+
+
+```{r set-parameters}
+SHOW_SAMPLE_SIZE <- TRUE
+
+## parameters set by parent: stim, 
+
+fdr_cut <- 0.2
+p_cut <- 0.01
+min_gene_set <- 5
+form_interact_vac <- "~plate + total_reads + age_weeks + pid + vaccine*stimulation"
+form_interact_dis <- "~plate + total_reads + age_weeks + pid + case*stimulation"
+
+## store number of significant gene-sets for each comparison
+summary_tab <- NULL
+```
+
+```{r genesets}
+## set up GSEA analysis
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+```
+
+# GSEA `r toupper(stim)`: vaccine/disease stimulation interaction  
+  
+**vaccine linear model:** `r form_interact_vac`  
+  
+**vaccine filtering   :**  `r time`
+  
+```{r vaccine_data}
+################### vaccine/disease*stimulation analysis ########################
+
+## vaccine: select subset of expressionSet
+meta_dt %>% 
+  filter(stimulation == "dmso" | stimulation == stim) %>% 
+  filter(visit == time) %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation levels
+mal_vac <- mal067_eset[, sample_vac] 
+mal_vac$stimulation <- fct_drop(mal_vac$stimulation)
+```
+
+**disease linear model:** `r form_interact_dis`   
+  
+**disease filtering   :** `r time`, case/control, rtss  
+
+```{r disease_data}
+## disease: select subset of expressionSet
+meta_dt %>% 
+  filter(stimulation == "dmso" | stimulation == stim) %>% 
+  filter(visit == time) %>%
+  filter(case != "neither") %>%
+  filter(vaccine == "rtss") %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation/case levels
+mal_dis <- mal067_eset[, sample_vac] 
+mal_dis$stimulation <- fct_drop(mal_dis$stimulation)
+mal_dis$case <- fct_drop(mal_dis$case)
+
+```
+
+##both age groups (young and old) {.tabset .tabset-fade .tabset-pills}
+
+```{r sample_size, eval=SHOW_SAMPLE_SIZE}
+
+## get sample sizes
+countSampleSizes(pData(mal_vac), "stimulation", 
+                 c("vaccine", "case", "age")) %>%
+headerKable(labels=c("vaccine", "case", "age"), levels=c(2,3,2), 
+            title="vaccine sample size")
+
+## get sample sizes
+countSampleSizes(pData(mal_dis), "stimulation", 
+                 c("vaccine", "case", "age")) %>%
+headerKable(labels=c("vaccine", "case", "age"), levels=c(2,2,2), 
+            title="disease sample size")
+
+```
+  
+###vaccine  
+
+```{r vac_analysis}
+################## vaccine analysis ############################
+
+cam_vac <- runGSEA(mal_vac, 
+                   form_interact_vac,
+                   coef=paste0("vaccinertss:stimulation", stim))
+numSig <- sum(cam_vac$FDR <= fdr_cut)
+
+```
+
+###disease  
+
+```{r dis_analysis, results="asis"}
+
+################## disease analysis ############################
+
+cam_dis <- runGSEA(mal_dis, 
+                   form_interact_dis,
+                   coef=paste0("casecase:stimulation", stim))
+summary_tab <- rbind(c(numSig, sum(cam_dis$FDR <= fdr_cut)))
+```
+
+```{r write_output}
+
+cam_vac %>%
+  dplyr::left_join(cam_dis[,c("geneset", "Direction", "PValue", "FDR")],
+                   by="geneset") %>%
+  plyr::rename(c("Direction.x"="Direction_vac")) %>%
+  plyr::rename(c("PValue.x"="PValue_vac")) %>%
+  plyr::rename(c("FDR.x"="FDR_vac")) %>%
+  plyr::rename(c("Direction.y"="Direction_dis")) %>%
+  plyr::rename(c("PValue.y"="PValue_dis")) %>%
+  plyr::rename(c("FDR.y"="FDR_dis")) %>%
+  mutate(sign_vac=as.numeric(plyr::mapvalues(Direction_vac, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(log10_Pval_vac=sign_vac*-log10(PValue_vac)) %>%
+  mutate(sign_dis=as.numeric(plyr::mapvalues(Direction_dis, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+    mutate(log10_Pval_dis=sign_dis*-log10(PValue_dis)) ->
+  outie
+  
+file <- paste("GSEA", time, stim, "vac_dis", sep="_")
+write_csv(outie, paste0(here("output/"), file, ".csv"))
+
+```
+
+###disease: significant vaccine gene-sets  
+  
+```{r dis_vac}
+
+if(numSig == 0) {
+  cat("No significant gene-sets for vaccine comparison")
+} else {
+  cam_vac %>%
+    filter(FDR <= fdr_cut) %$%
+    geneset ->
+    vac_sigs
+  
+  cam_dis %>%
+    filter(geneset %in% vac_sigs) %>%
+    mutate(FDR = p.adjust(PValue, method="BH")) %>%
+    kable(align=rep("c", ncol(cam_vac))) %>%
+        kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                      full_width=FALSE, position="left") %>%
+        scroll_box(height="300px")
+  
+}
+
+```
+ 
+#Summary
+
+```{r summary}
+dimnames(summary_tab) <- list(c("both"), c("vaccine", "disease"))
+headerKable(summary_tab, title="Number of significant gene-sets")
+```

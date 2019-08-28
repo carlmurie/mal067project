@@ -25,6 +25,8 @@ library(data.table)
 library(survival)   ## clogit
 library(GSEABase)
 library(tidyverse)
+library(htmltools)
+library(limma)
 
 source(here("code", "mal_utilities.R"))
 ```
@@ -63,7 +65,7 @@ load("data/m067_seattle_data.RData")
   
 Ddatabase of antibody Luminex contains 3 new variables: isotype (IgG and IgM), analyte (42 antigens) and log10_mfi_no_dil, as log10 of the median fluorecence intensity (mfi) not diluted. 
   
-These variables will be compared to DMSO samples.  
+These variables will be applied to the DMSO samples.  
   
 ```{r cytokines} 
 
@@ -73,7 +75,7 @@ meta_dt %>%
   filter(stimulation=="dmso") %>%
   mutate(stimulation=as.character(stimulation)) %>%
   mutate(visit=as.character(visit)) %>%
-  dplyr::select(pid, visit, stimulation, col_id, case, malaria_status, match) ->
+  dplyr::select(pid, visit, stimulation, col_id, case, malaria_status, match, plate) ->
   meta_cyto
 
 ## format antibody data
@@ -104,8 +106,14 @@ if(total != nrow(cyto)) {stop("Sample size is not correct")}
 
 ###antibody database  
   
+Each analyte has the following sample sizes  
+  
 ```{r samplesize1}
-countSampleSizes(df_rna, "analyte", c("isotype", "visit", "vaccine")) %>%
+##countSampleSizes(df_rna, "analyte", c("isotype", "visit", "vaccine")) %>%
+##  headerKable()
+
+tmp <- df_rna[df_rna$analyte=="alfagal",]
+countSampleSizes(tmp, "isotype",  c("visit", "vaccine")) %>%
   headerKable()
 ```
  
@@ -183,118 +191,145 @@ countSampleSizes(cyto_logit, "analyte", c("visit", "isotype", "case")) %>%
  print(gg_igm2)
 ```
   
-##Correlations between antibody mfi and RNASeq gene expression for significant GSEA gene-sets  {.tabset .tabset-fade .tabset-pills}  
+#GSEA analysis {.tabset .tabset-fade .tabset-pills}
+
+```{r voom_setup}
+
+fdr_cut <- 0.2
+
+## reformat antibody data for limma
+cyto %>%
+ mutate(analyte= str_replace_all(analyte, "_", ".")) %>%
+ mutate(antibody=paste(isotype, analyte, sep="_")) %>%
+ mutate(antibody= str_replace_all(antibody, "[()]", "")) ->
+    cyto_tmp
+
+## get vector of unique combinations of isotype and analyte
+antibodies <- sort(unique(cyto_tmp$antibody))
+
+cyto_tmp %>%
+ dcast(pid+col_id+visit+vaccine+case+malaria_status+stimulation+plate~antibody,
+       value.var="log10_mfi") ->
+  cyto_df
+
+anti_voom <- mal067_voom[, cyto_df$col_id]
+anti_voom$targets <- cyto_df
+if(sum(colnames(anti_voom) != anti_voom$targets$col_id) > 0) {
+  stop("GSEA join is screwed up")
+}
+
+applyGSEA <- function(antibody, dat, btm=btm_ind) {
   
+  ## remove any potential NAs
+  na_ind <- is.na(dat$targets[,antibody])
+  voomy <- dat[,!na_ind]
   
-```{r sig1}
-sigSetName <- "enriched in myeloid cells and monocytes (M81)"
-sigSet <- btm_ind[[sigSetName]]
+  form <- paste0("~plate + ", antibody)
+  des <- model.matrix(formula(form), voomy$targets)
+  colnames(des)[ncol(des)] <- "antibody"
+ 
+  ## run camera
+  cam_vac <- as_tibble(camera(voomy, btm, design=des,
+                              contrast="antibody"),
+                       rownames="geneset")
+  cam_vac %<>%
+    mutate(PValue=signif(PValue, 3)) %<>%
+    mutate(FDR=signif(FDR, 3))
+  
+  fit1 <- lmFit(voomy, des)
+  fit2 <- eBayes(fit1, trend=FALSE)
+  tmp_pfs <- topTable(fit2, number=Inf, coef="antibody", sort="P")
+ 
+  return(cam_vac)
+}
+
+```
+ 
+ 
+```{r samples}
+anti_voom$targets %>%
+  countSampleSizes("visit", c("vaccine", "malaria_status", "stimulation")) %>%
+  headerKable(labels=c("vaccine", "malaria", "stim"), levels=c(1,2,1))
+ 
+```
+ 
+There are only 4 samples for M0 visit so that time period will not be analysed.  
+  
+##M3  
+  
+```{r voom}
+
+## select only M3 samples
+anti_voom$targets %>%
+  filter(visit=="M3") %$%
+  col_id ->
+  m3_ind
+
+m3_voom <- anti_voom[,m3_ind]
+
+all_cam <- lapply(antibodies, applyGSEA, dat=m3_voom)
+names(all_cam) <- antibodies
+
+## get number of signficant gene sets
+num_sigs <- sapply(all_cam, function(x) return(sum(x$FDR<=fdr_cut)),
+                   simplify=TRUE)
+out_sigs <- data.frame('significant sets'=num_sigs)
+
+splits <- str_split(rownames(out_sigs), "_", simplify=TRUE)
+colnames(splits) <- c("isotype", "analyte")
+out_sigs <- cbind(out_sigs, splits)
+out_all <- dcast(out_sigs, analyte~isotype, value.var="significant.sets")
+
+## get significant gene sets
+sigs <- lapply(all_cam, function(x) return(x[x$FDR <= fdr_cut,]))
+
 ```
   
-###`r sigSetName` | cytokine ratios vs RNASeq gene expression 
-
-Correlations greater than 0.2 or less than -0.2 are in red.   
+###Summary of signficant sets  
   
-```{r sig1_analysis}
-
-rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
-all_DT <- data.table(dplyr::inner_join(cyto,rna_DT, by=c("col_id"="Var2")))
-setnames(all_DT, "Var1", "gene")
-
-corAllClass <- all_DT[,.(pearson=signif(cor(value, log10_mfi), 3),
-              spearman=signif(cor(value, log10_mfi,
-                                  method="spearman"), 3)),
-              by=.(analyte, isotype)]
-
-corGeneClass <- all_DT[,.(pearson=signif(cor(value, log10_mfi), 3),
-              spearman=signif(cor(value, log10_mfi,
-                                  method="spearman"), 3)),
-              by=.(gene, analyte, isotype)]
-
-corAllClass %>%
-  setorder(isotype) %>%
-mutate(pearson=cell_spec(pearson, 
-                         color = ifelse(pearson >= 0.2 | pearson <= -0.2, 
-                                        "red", "black"))) %>%
-mutate(spearman=cell_spec(spearman, 
-                         color = ifelse(spearman >= 0.2 | pearson <= -0.2, 
-                                        "red", "black"))) %>%
-headerKable()
-```
-
-
-
-```{r sig2}
-sigSetName <- "NK cell surface signature (S1)"
-sigSet <- btm_ind[[sigSetName]]
+```{r out_csp}
+headerKable(out_all, title="Number of significant sets")
 ```
   
-###`r sigSetName` | cytokine ratios vs RNASeq gene expression 
-
-Correlations greater than 0.2 or less than -0.2 are in red.   
+###Tables of significant sets  {.tabset .tabset-fade .tabset-pills}
   
-```{r sig1_analysis2}
+```{r tables}
+for(name in rownames(out_sigs)) {
+  tmp <- sigs[[name]]
+  if(nrow(tmp) > 0) {
+     knit_print.html(cat(paste("####", name, "{-} \n  \n")))
+     knit_print.html(cat(headerKable(tmp), "\n"))
+  }
+}
 
-rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
-all_DT <- data.table(dplyr::inner_join(cyto,rna_DT, by=c("col_id"="Var2")))
-setnames(all_DT, "Var1", "gene")
-
-corAllClass <- all_DT[,.(pearson=signif(cor(value, log10_mfi), 3),
-              spearman=signif(cor(value, log10_mfi,
-                                  method="spearman"), 3)),
-              by=.(analyte, isotype)]
-
-corGeneClass <- all_DT[,.(pearson=signif(cor(value, log10_mfi), 3),
-              spearman=signif(cor(value, log10_mfi,
-                                  method="spearman"), 3)),
-              by=.(gene, analyte, isotype)]
-
-corAllClass %>%
-  setorder(isotype) %>%
-mutate(pearson=cell_spec(pearson, 
-                         color = ifelse(pearson >= 0.2 | pearson <= -0.2, 
-                                        "red", "black"))) %>%
-mutate(spearman=cell_spec(spearman, 
-                         color = ifelse(spearman >= 0.2 | pearson <= -0.2, 
-                                        "red", "black"))) %>%
-headerKable()
 ```
 
+```{r deg}
 
-
-```{r sig3}
-sigSetName <- "enriched in monocytes (I) (M4.15)"
-sigSet <- btm_ind[[sigSetName]]
-```
+applyDEG <- function(antibody, dat) {
   
-###`r sigSetName` | cytokine ratios vs RNASeq gene expression 
-
-Correlations greater than 0.2 or less than -0.2 are in red.   
+  colInd <- c("logFC", "P.Value", "adj.P.Val")
   
-```{r sig1_analysis3}
+  ## remove any potential NAs
+  na_ind <- is.na(dat$targets[,antibody])
+  voomy <- dat[,!na_ind]
+  
+  form <- paste0("~plate + ", antibody)
+  des <- model.matrix(formula(form), voomy$targets)
+  colnames(des)[ncol(des)] <- "antibody"
+ 
+  fit1 <- lmFit(voomy, des)
+  fit2 <- eBayes(fit1, trend=FALSE)
+  tmp_pfs <- topTable(fit2, number=Inf, coef="antibody", sort="P")
 
-rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
-all_DT <- data.table(dplyr::inner_join(cyto,rna_DT, by=c("col_id"="Var2")))
-setnames(all_DT, "Var1", "gene")
+ 
+}
 
-corAllClass <- all_DT[,.(pearson=signif(cor(value, log10_mfi), 3),
-              spearman=signif(cor(value, log10_mfi,
-                                  method="spearman"), 3)),
-              by=.(analyte, isotype)]
+all_cam <- lapply(antibodies, applyDEG, dat=m3_voom)
+names(all_cam) <- antibodies
 
-corGeneClass <- all_DT[,.(pearson=signif(cor(value, log10_mfi), 3),
-              spearman=signif(cor(value, log10_mfi,
-                                  method="spearman"), 3)),
-              by=.(gene, analyte, isotype)]
+applyDEG(antibodies[1], dat=m3_voom)
 
-corAllClass %>%
-  setorder(isotype) %>%
-mutate(pearson=cell_spec(pearson, 
-                         color = ifelse(pearson >= 0.2 | pearson <= -0.2, 
-                                        "red", "black"))) %>%
-mutate(spearman=cell_spec(spearman, 
-                         color = ifelse(spearman >= 0.2 | pearson <= -0.2, 
-                                        "red", "black"))) %>%
-headerKable()
 ```
+
 

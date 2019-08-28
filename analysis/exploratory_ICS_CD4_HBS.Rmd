@@ -1,5 +1,5 @@
 ---
-title: "Integrate ICS CD4 and RNASeq data"
+title: "Integrate ICS CD4 Polyfunctional Scores (PFS) and RNASeq data"
 subtitle: "HBS"
 author: "Carl Murie and Raphael Gottardo"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
@@ -27,6 +27,7 @@ library(survival)   ## clogit
 library(GSEABase)
 library(tidyverse)
 library(gridExtra)
+library(DT)
 
 source(here("code", "mal_utilities.R"))
 ```
@@ -48,7 +49,7 @@ btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
 
 
 ```{r getmorevars}
-pfs <- readRDS(here("data/CD4_HBS_PFS.rds"))
+pfs <- readRDS(here("data/CD4_HBS_PFS.rds")) 
 stim <- "hbs"
 ```
 
@@ -58,14 +59,16 @@ stim <- "hbs"
 var_sids <- unique(pfs$PTID)
 
 pData(mal067_eset) %>%
-  filter(stimulation==stim) %>%
+  filter(stimulation=="dmso" | stimulation==stim) %>%
   filter(sid %in% var_sids) %$%
   col_id ->
   overlap
 
 prune_meta <- mal067_voom[,overlap]
-prune_meta$targets <- prune_meta$targets[,c("col_id", "case", "vaccine", "sid",
-                                            "pid", "visit", "stimulation", "age")]
+prune_meta$targets <- prune_meta$targets[,c("col_id", "plate", "age_weeks", "sid",
+                                            "pid", "visit", "stimulation",
+                                            "total_reads", "age", "case")]
+prune_meta$targets$stimulation <- fct_drop(prune_meta$targets$stimulation)
 
 ## filter ics data to reduce size
 pfs %>%
@@ -74,35 +77,27 @@ pfs %>%
   data
 ```
 
-```{r read_child}
+# Polyfunctionality Score (PFS) analysis with RNASeq gene expression data
+
+## GSEA analysis {.tabset .tabset-fade .tabset-pills}  
+
+```{r read_child1}
 ## read in child file for rendering
-child1 <- here::here("analysis/children", "exp_Var_RNA_Cor.Rmd")
+child1 <- here::here("analysis/children", "pfs_GSEA.Rmd")
 childy <- read_file(child1)
 ```
 
+`r paste(knit_child(text = childy), collapse = '\n')`
+</br>
 
-# Correlate Polyfunctionality Score (PFS) to RNASeq gene expression   
-  
-Only patients given the RTS,S vaccine for visit M3 are included in the analysis.  
-  
-```{r}
-sigSetName <-  "enriched in monocytes (I) (M4.15)"
+
+## DEG analysis {.tabset .tabset-fade .tabset-pills}  
+
+```{r read_child1a}
+## read in child file for rendering
+child1 <- here::here("analysis/children", "exp_PFS_DEG.Rmd")
+childy <- read_file(child1)
 ```
 
 `r paste(knit_child(text = childy), collapse = '\n')`
 </br>
-  
-```{r}
-sigSetName <- "enriched in myeloid cells and monocytes (M81)"
-```
-  
-`r paste(knit_child(text = childy), collapse = '\n')`
-</br>
-  
-```{r}
-sigSetName <- "NK cell surface signature (S1)"
-```
-
-`r paste(knit_child(text = childy), collapse = '\n')`
-</br>
-

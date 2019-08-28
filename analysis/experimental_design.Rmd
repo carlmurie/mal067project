@@ -25,7 +25,7 @@ library(tidyverse)
 ```{r load-data}
 library(mal067data)
 data(mal067_eset)
-meta_dt <- as.tibble(pData(mal067_eset))
+meta_dt <- as_tibble(pData(mal067_eset))
 
 numberOfSubs <- length(unique(meta_dt$pid))
 ```
@@ -47,7 +47,9 @@ Bulk RNASeq RTS,S malaria vaccine study.
 
 **Age**: 6-12 weeks (young) and 5-17 months (old).
 
-**Outcome**: control (no malaria) and case (malaria)
+**Outcome**: control (no malaria) and case (malaria) which is a subset of all subjects that have an associated stratified variable.  
+  
+**Malaria status**: Whether subject contracted malaria in the following year  
 
 **Visit**: M0 and M3 (initial visit and 3 months later)
 
@@ -103,3 +105,108 @@ meta_dt %>%
 
 ```
   
+#Protection
+
+```{r protection}
+subjects <- meta_dt[!duplicated(meta_dt$pid),]
+
+countSampleSizes(subjects, "vaccine", "malaria_status") %>%
+  dplyr::rename(Protected="X0", nonProtected="X1") %>%
+  mutate(vaccine=c("comparator", "rts,s")) %>%
+  select(vaccine, everything()) %>%
+  mutate('protection (%)'=signif(100*(Protected/total), 3)) ->
+           prot
+
+## by age
+subjects %>%
+  filter(age=="young") %>%
+countSampleSizes("vaccine", "malaria_status") %>%
+  dplyr::rename(Protected="X0", nonProtected="X1") %>%
+  mutate(vaccine=c("comparator", "rts,s")) %>%
+  select(vaccine, everything()) %>%
+  mutate('protection (%)'=signif(100*(Protected/total), 3)) ->
+           prot_young
+
+subjects %>%
+  filter(age=="old") %>%
+countSampleSizes("vaccine", "malaria_status") %>%
+  dplyr::rename(Protected="X0", nonProtected="X1") %>%
+  mutate(vaccine=c("comparator", "rts,s")) %>%
+  select(vaccine, everything()) %>%
+  mutate('protection (%)'=signif(100*(Protected/total), 3)) ->
+           prot_old
+
+
+subjects %>%
+  filter(case != "neither") %>%
+  countSampleSizes("vaccine", "malaria_status") %>%
+  mutate(vaccine=c("comparator", "rts,s")) %>%
+  select(vaccine, everything()) %>%
+  dplyr::rename(Protected="X0", nonProtected="X1") %>%
+  mutate('protection (%)'=signif(100*(Protected/total), 3)) ->
+           prot_case
+
+subjects %>%
+  filter(case != "neither") %>%
+  filter(age=="young") %>%
+  countSampleSizes("vaccine", "malaria_status") %>%
+  mutate(vaccine=c("comparator", "rts,s")) %>%
+  select(vaccine, everything()) %>%
+  dplyr::rename(Protected="X0", nonProtected="X1") %>%
+  mutate('protection (%)'=signif(100*(Protected/total), 3)) ->
+           prot_case_young
+
+subjects %>%
+  filter(case != "neither") %>%
+  filter(age=="old") %>%
+  countSampleSizes("vaccine", "malaria_status") %>%
+  mutate(vaccine=c("comparator", "rts,s")) %>%
+  select(vaccine, everything()) %>%
+  dplyr::rename(Protected="X0", nonProtected="X1") %>%
+  mutate('protection (%)'=signif(100*(Protected/total), 3)) ->
+           prot_case_old
+
+
+```
+
+##All subjects  
+  
+###both age groups  
+```{r}
+prot %>%
+  headerKable(title="both age groups")
+```
+
+###young age group    
+```{r}
+prot_young %>%
+  headerKable(title="young age group")
+```
+
+###old age group  
+```{r}
+prot_old %>%
+  headerKable(title="old age group")
+```
+
+##case/control subjects  
+  
+###both age groups
+```{r}
+prot_case %>%
+  headerKable(title="both age groups")
+```
+
+###young age group
+```{r}
+prot_case_young %>%
+  headerKable(title="young age group")
+```
+
+###old age group
+```{r}
+prot_case_old %>%
+  headerKable(title="old age group")
+```
+
+

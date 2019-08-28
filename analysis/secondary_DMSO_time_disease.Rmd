@@ -104,3 +104,4 @@ cam_dis <- runGSEA(mal_dis,
                    coef="visitM3:casecase")
 summary_tab <-  sum(cam_dis$FDR <= fdr_cut)
 ```
+

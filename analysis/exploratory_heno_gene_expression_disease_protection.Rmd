@@ -1,0 +1,137 @@
+---
+title: "Protection prediction"
+subtitle: "Phenotype cell subsets with gene expression"
+author: "Carl Murie"
+date: "June 28, 2019"
+output: 
+   workflowr::wflow_html:
+    theme: lumen
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r load-packages}
+library(RNASeqUtilities)
+library(Biobase)
+library(limma)
+library(tidyverse)
+library(magrittr)
+library(here)
+library(data.table)
+library(survival)   ## clogit
+library(GSEABase)
+library(MAL067Package)
+
+source(here("code", "mal_utilities.R"))
+```
+
+
+```{r load-data}
+library(mal067data)
+data(mal067_meta_flow)
+
+## get monocyte and lymphocyte populations
+read_tsv(here::here("data/170830-RTSS case control phenotyping.txt"),
+         col_types=cols_only(PTID=col_character(),
+                             VISITNO=col_character(),
+                             Lineage=col_character(),
+                             Count=col_double()))  %>%
+  filter(grepl("Mono$", Lineage)  | 
+         grepl("^Lymphocyte", Lineage)) %>%
+  filter(PTID != "FH12 (SAC207295)") %>%   ## remove control samples 
+  data.table() ->
+  flow1
+
+## reshape for convenience
+dcast(flow1, formula="PTID+VISITNO~Lineage", value.var="Count") %>% 
+  dplyr::rename(Intermediate=`CD14+CD16+ Intermediate Mono`,
+                Classical=`CD14+CD16- Classical Mono`,
+                Inflammatory=`CD14loCD16hi Inflammatory Mono`) %>%
+  mutate(ml_ratio=Classical/Lymphocytes) %>%
+  mutate(ml_ratio_sum=(Classical+Inflammatory+Intermediate)/Lymphocytes)->
+  flow
+
+## merge pheno data with rnaseq data
+mal067_voom$targets %>%
+  dplyr::select(c(sid, visit, case, stimulation, col_id,
+                 malaria_status, age_weeks, match, sex)) %>%
+  filter(stimulation=="dmso") %>%
+  filter(case != "neither") %>%
+  mutate(case_logit:=as.numeric(plyr::mapvalues(as.character(case),
+                                          from=c("control","case"), 
+                                          to=c(0,1)))) %>%
+  dplyr::inner_join(flow, by=c("sid"="PTID", "visit"="VISITNO")) ->
+tmp
+  
+voom <- mal067_voom[, tmp$col_id]
+voom$targets <- tmp
+
+if(sum(colnames(voom) != voom$targets$col_id) > 0) {
+  stop("merging of pheno and rnaseq failed")
+} 
+
+```
+
+#Test monocyte/lymphocyte ratios for disease (case) prediction a gene by gene basis  
+  
+Test monocyte/lymphocyte ratios for disease prediction and add each gene to investigate whether it's inclusion improves prediction.
+  
+The four cell subsets used in this analysis are:  
+
+`r headerKable(data.frame(subsets=unique(flow1$Lineage)))`  
+  
+clogit regression will be applied with the following formula:  
+  
+case ~ ml_ratio + gene + sex + strata(match)  
+  
+`r num_na` samples were removed due to no match variable.
+
+```{r function}
+
+form <- " ~ml_ratio + log2CPM + sex +strata(match)"
+
+ melt(voom$E) %>%
+   plyr::rename(c("Var1"="Gene",
+                  "Var2"="ID",
+                  "value"="log2CPM")) %>%
+   dplyr::inner_join(voom$targets[,c("col_id", "sex", "case_logit",
+                              "match", "ml_ratio", "ml_ratio_sum")],
+                     by=c("ID"="col_id")) %>%
+   data.table() ->
+  gene_dt
+ 
+ ##logg <- clogit(case_logit~ml_ratio+sex+log2CPM+strata(match), data=gene_dt[Gene=="A1BG"])
+ 
+ ## takes ~ 20m
+system.time(ratio_pvals <- gene_dt[,summary(clogit(case_logit~ml_ratio+sex+log2CPM+strata(match)))$coefficients[c("ml_ratio", "log2CPM"), 5],
+                       by=Gene])
+
+system.time(ratio_sum_pvals <- gene_dt[,summary(clogit(case_logit~ml_ratio+sex+log2CPM+strata(match)))$coefficients[c("ml_ratio_sum", "log2CPM"), 5],
+                       by=Gene])
+
+indy <- seq(1, nrow(ratio_pvals), 2)
+ratio <- data.frame(gene=logit_pvals[indy,1], 
+                    ratio_pvalue=logit_pvals[indy,2],
+                    gene_pvalue=logit_pvals[indy+1,2])
+
+colnames(ratio) <- c("ID", "ratio", "gene")
+ratio$ratio_fdr <- p.adjust(ratio$ratio, method="BH")
+ratio$gene_fdr <- p.adjust(ratio$gene, method="BH")
+
+```
+  
+#Results  
+  
+Nothing
+
+Smallest FDR pvalues:  
+  
+ml_ratio p value: `r min(ratio$ratio_fdr)`
+gene p value: `r min(ratio$gene_fdr)`  

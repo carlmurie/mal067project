@@ -26,6 +26,7 @@ library(survival)   ## clogit
 library(GSEABase)
 library(tidyverse)
 library(gridExtra)
+library(htmltools)
 
 source(here("code", "mal_utilities.R"))
 ```
@@ -77,7 +78,8 @@ meta_dt %>%
 ## format cytokine data
 l_df_rna[[1]] %>%
   mutate(sid=as.character(sid)) %>%
-  mutate(stimulation=tolower(stimulation)) ->
+  mutate(stimulation=tolower(stimulation)) %>%
+  mutate(analyte=str_replace_all(analyte, "-", "_")) ->
   df_rna
 
 ##countSampleSizes(df_rna, "analyte", c("stimulation", "case")) %>%
@@ -100,6 +102,8 @@ if(total != nrow(cyto)) {stop("Sample size is not correct")}
 
 ###cytokine database  
   
+There are only samples from visit M3.  
+  
 ```{r samplesize1}
 countSampleSizes(df_rna, "analyte", c("stimulation", "vaccine")) %>%
   headerKable()
@@ -110,21 +114,17 @@ countSampleSizes(df_rna, "analyte", c("stimulation", "vaccine")) %>%
 ```{r plotty}
 
 tmp <- data.table(df_rna)[stimulation=="csp"]
-ggplot(tmp, aes(x=1:nrow(tmp), y=Log10_ratio_conc_imp_trunc)) +
-  geom_point() + facet_wrap(~analyte) +
-  xlab("order") + ggtitle("CSP: log10_ratio")
+ggplot(tmp, aes(x=analyte, y=Log10_ratio_conc_imp_trunc)) +
+  geom_boxplot() + ggtitle("CSP: log10_ratio") + 
+  theme(axis.text.x=element_text(angle=45, hjust=1))
 ```
- 
 ###after joining rnaSeq meta-data and cytokine database  
   
 All comparator samples were removed.  
   
 ```{r samplesize2}
-
 countSampleSizes(cyto, "analyte", c("stimulation", "case", "vaccine")) %>%
   headerKable()
-
-
 ```
 
 ## Disease prediction  
@@ -145,7 +145,7 @@ cyto %>%
   cyto_logit
 ```
 
-##Sample size  
+###Sample size  
   
 ```{r sample3}
 countSampleSizes(cyto_logit, "analyte", c("stimulation", "case")) %>%
@@ -181,192 +181,199 @@ countSampleSizes(cyto_logit, "analyte", c("stimulation", "case")) %>%
  
 ```
  
-##Log10 ratio plots of case and control
+###Log10 ratio plots of case and control
  
 ```{r plots} 
  print(gg_csp)
  print(gg_hbs)
 ```
   
-##Correlations between cytokine ratios and RNASeq gene expression for significant GSEA gene-sets  {.tabset .tabset-fade .tabset-pills}  
+##GSEA analysis 
   
   
-```{r sig1}
-sigSetName <- "enriched in myeloid cells and monocytes (M81)"
-sigSet <- btm_ind[[sigSetName]]
-```
+```{r function} 
+applyGSEA <- function(analyte, dat, btm=btm_ind) {
   
-###`r sigSetName` | cytokine ratios vs RNASeq gene expression 
-
-Correlations greater than 0.2 or less than -0.2 are in red.   
+  ## remove any potential NAs
+  na_ind <- is.na(dat$targets[,analyte])
+  voomy <- dat[,!na_ind]
   
-```{r sig1_analysis}
-
-rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
-all_DT <- data.table(dplyr::inner_join(cyto,rna_DT, by=c("col_id"="Var2")))
-setnames(all_DT, "Var1", "gene")
-
-corAllClass <- all_DT[,.(pearson=signif(cor(value, log10_ratio), 3),
-              spearman=signif(cor(value, log10_ratio,
-                                  method="spearman"), 3)),
-              by=analyte]
-
-corGeneClass <- all_DT[,.(pearson=signif(cor(value, log10_ratio), 3),
-              spearman=signif(cor(value, log10_ratio,
-                                  method="spearman"), 3)),
-              by=.(gene, analyte)]
-
-corAllClass %>%
-mutate(pearson=cell_spec(pearson, 
-                         color = ifelse(pearson >= 0.2 | pearson <= -0.2, 
-                                        "red", "black"))) %>%
-mutate(spearman=cell_spec(spearman, 
-                         color = ifelse(spearman >= 0.2 | pearson <= -0.2, 
-                                        "red", "black"))) %>%
-headerKable()
-```
-
-####Correlation plots
-```{r corplots}
-
-ggplot(corGeneClass, aes(x=analyte, y=pearson)) + geom_boxplot() + ylim(-1,1)
-ggplot(corGeneClass, aes(x=analyte, y=spearman)) + geom_boxplot() + ylim(-1,1)
-```
-
-####Correlation tables  
+  form <- paste0("~plate + total_reads + age_weeks + ", analyte, "*stimulation")
+  des <- model.matrix(formula(form), voomy$targets)
+  colnames(des)[ncol(des)] <- "analyte"
  
-```{r cortable}
+  ## run camera
+  cam_vac <- as_tibble(camera(voomy, btm, design=des,
+                              contrast="analyte"),
+                       rownames="geneset")
+  cam_vac %<>%
+    mutate(PValue=signif(PValue, 3)) %<>%
+    mutate(FDR=signif(FDR, 3))
+ return(cam_vac)
+}
 
-cor_spear <- spread(corGeneClass[,-"pearson"], key="analyte", value=c("spearman"))
-cor_pear <- spread(corGeneClass[,-"spearman"], key="analyte", value=c("pearson"))
-
-headerKable(cor_pear, title="spearman") %>%
-  scroll_box(width = "500px")
-
-headerKable(cor_spear, title="spearman") %>%
-  scroll_box(width = "500px")
-
-```
-
-
-
-
-```{r sig2}
-sigSetName <- "NK cell surface signature (S1)"
-sigSet <- btm_ind[[sigSetName]]
+## get list of analytes
+unique(df_rna$analyte)  ->
+  analytes
 ```
   
-###`r sigSetName` | cytokine ratios vs RNASeq gene expression  
+```{r setup}
+fdr_cut <- 0.2
+
+df_wide <- dcast(df_rna, pid+sid+sex+vaccine+stimulation~analyte,
+                 value.var="Log10_ratio_conc_imp_trunc")
+var_sids <- unique(df_wide$sid)
+
+pData(mal067_eset) %>%
+  filter(stimulation !="ama1") %>%
+  filter(sid %in% var_sids) %$%
+  col_id ->
+  overlap
+
+prune_meta <- mal067_voom[,overlap]
+prune_meta$targets <- prune_meta$targets[,c("col_id", "plate", "age_weeks", "sid",
+                                            "visit", "pid", "stimulation",
+                                            "total_reads", "case")]
+```
+    
+Investigate whether the associations between the cytokines and the RNASeq gene expression differe with regard to stimulations.
+
+filtering: M3, rtss, comparator
+
+linear model: ~plate + total_reads + age_weeks + analyte*stimulation"  
   
-Correlations greater than 0.2 or less than -0.2 are in red.   
+FDR cutoff <= `r fdr_cut`
   
-```{r sig2_analysis}
+###CSP {.tabset .tabset-fade .tabset-pills}  
+  
+```{r csp_filter}
 
-rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
-all_DT <- data.table(dplyr::inner_join(cyto,rna_DT, by=c("col_id"="Var2")))
-setnames(all_DT, "Var1", "gene")
+## filter for dmso and csp
+df_wide %>% 
+  filter(stimulation == "csp") %>%
+  select(-c("stimulation")) -> 
+  df_csp
 
-corAllClass <- all_DT[,.(pearson=signif(cor(value, log10_ratio), 3),
-              spearman=signif(cor(value, log10_ratio,
-                                  method="spearman"), 3)),
-              by=analyte]
+csp_sids <- unique(df_csp$sid)
 
-corGeneClass <- all_DT[,.(pearson=signif(cor(value, log10_ratio), 3),
-              spearman=signif(cor(value, log10_ratio,
-                                  method="spearman"), 3)),
-              by=.(gene, analyte)]
+prune_meta$targets %>%
+  filter(stimulation != "hbs") %>%
+  filter(sid %in% csp_sids) %$%
+  col_id ->
+  csp_ind
 
-corAllClass %>%
-mutate(pearson=cell_spec(pearson, 
-                         color = ifelse(pearson >= 0.2 | pearson <= -0.2, 
-                                        "red", "black"))) %>%
-mutate(spearman=cell_spec(spearman, 
-                         color = ifelse(spearman >= 0.2 | pearson <= -0.2, 
-                                        "red", "black"))) %>%
-headerKable()
-```
+voom_csp <- prune_meta[,csp_ind]
+voom_csp$targets$stimulation <- fct_drop(voom_csp$targets$stimulation)
 
-####Correlation plots
-```{r corplots2}
+dplyr::inner_join(voom_csp$targets, df_csp, by="sid") ->
+  df_join 
 
-ggplot(corGeneClass, aes(x=analyte, y=pearson)) + geom_boxplot() + ylim(-1,1)
-ggplot(corGeneClass, aes(x=analyte, y=spearman)) + geom_boxplot() + ylim(-1,1)
-```
+if(sum(voom_csp$col_id != df_join$col_id) > 0) {
+  stop("Joining analyte and rnaseq data failed")
+}
 
-####Correlation tables  
-
-```{r cortable2}
-
-cor_spear <- spread(corGeneClass[,-"pearson"], key="analyte", value=c("spearman"))
-cor_pear <- spread(corGeneClass[,-"spearman"], key="analyte", value=c("pearson"))
-
-headerKable(cor_pear, title="spearman") %>%
-  scroll_box(width = "500px")
-
-headerKable(cor_spear, title="spearman") %>%
-  scroll_box(width = "500px")
-
-```
-
-
-
-
-```{r sig3}
-sigSetName <- "enriched in monocytes (I) (M4.15)"
-sigSet <- btm_ind[[sigSetName]]
+voom_csp$targets <- df_join
 ```
   
-###`r sigSetName` | cytokine ratios vs RNASeq gene expression  
+Sample Sizes  
   
-Correlations greater than 0.2 or less than -0.2 are in red.   
-  
-```{r sig3_analysis}
-
-rna_DT <- melt(exprs(mal067_eset)[sigSet,], variable.names=1:ncol(mal067_eset))
-all_DT <- data.table(dplyr::inner_join(cyto,rna_DT, by=c("col_id"="Var2")))
-setnames(all_DT, "Var1", "gene")
-
-corAllClass <- all_DT[,.(pearson=signif(cor(value, log10_ratio), 3),
-              spearman=signif(cor(value, log10_ratio,
-                                  method="spearman"), 3)),
-              by=analyte]
-
-corGeneClass <- all_DT[,.(pearson=signif(cor(value, log10_ratio), 3),
-              spearman=signif(cor(value, log10_ratio,
-                                  method="spearman"), 3)),
-              by=.(gene, analyte)]
-
-corAllClass %>%
-mutate(pearson=cell_spec(pearson, 
-                         color = ifelse(pearson >= 0.2 | pearson <= -0.2, 
-                                        "red", "black"))) %>%
-mutate(spearman=cell_spec(spearman, 
-                         color = ifelse(spearman >= 0.2 | pearson <= -0.2, 
-                                        "red", "black"))) %>%
-headerKable()
+```{r csp_samples} 
+countSampleSizes(voom_csp$targets, "stimulation", 
+                 c("visit", "vaccine")) %>%
+  headerKable(labels=c("visit", "vaccine"), levels=c(2,2))
 ```
 
-####Correlation plots
-```{r corplots3}
+```{r run_it_csp}
+all_cam <- lapply(analytes, applyGSEA, dat=voom_csp)
+names(all_cam) <- analytes
 
-ggplot(corGeneClass, aes(x=analyte, y=pearson)) + geom_boxplot() + ylim(-1,1)
-ggplot(corGeneClass, aes(x=analyte, y=spearman)) + geom_boxplot() + ylim(-1,1)
-```
+## get number of signficant gene sets
+num_sigs <- sapply(all_cam, function(x) return(sum(x$FDR<=fdr_cut)),
+                   simplify=TRUE)
+out_sigs <- data.frame('significant sets'=sort(num_sigs,
+                                                decreasing=TRUE))
 
-####Correlation tables  
-  
-Correlations greater than 0.2 or less than -0.2 are in red.  
-
-```{r cortable3}
-
-cor_spear <- spread(corGeneClass[,-"pearson"], key="analyte", value=c("spearman"))
-cor_pear <- spread(corGeneClass[,-"spearman"], key="analyte", value=c("pearson"))
-
-headerKable(cor_pear, title="spearman") %>%
-  scroll_box(width = "500px")
-
-headerKable(cor_spear, title="spearman") %>%
-  scroll_box(width = "500px")
+## get significant gene sets
+sigs <- lapply(all_cam, function(x) return(x[x$FDR <= fdr_cut,]))
 
 ```
 
+```{r out_csp}
+headerKable(out_sigs)
+
+for(name in rownames(out_sigs)) {
+  tmp <- sigs[[name]]
+  if(nrow(tmp) > 0) {
+     knit_print.html(cat(paste("####", name, "{-} \n  \n")))
+     knit_print.html(cat(headerKable(tmp), "\n"))
+  }
+}
+
+```
+
+###HBS {.tabset .tabset-fade .tabset-pills}  
+  
+```{r hbs_filter}
+
+## filter for dmso and hbs
+df_wide %>% 
+  filter(stimulation == "hbs") %>%
+  select(-c("stimulation")) -> 
+  df_csp
+
+csp_sids <- unique(df_csp$sid)
+
+prune_meta$targets %>%
+  filter(stimulation != "csp") %>%
+  filter(sid %in% csp_sids) %$%
+  col_id ->
+  csp_ind
+
+voom_csp <- prune_meta[,csp_ind]
+voom_csp$targets$stimulation <- fct_drop(voom_csp$targets$stimulation)
+
+dplyr::inner_join(voom_csp$targets, df_csp, by="sid") ->
+  df_join 
+
+if(sum(voom_csp$col_id != df_join$col_id) > 0) {
+  stop("Joining analyte and rnaseq data failed")
+}
+
+voom_csp$targets <- df_join
+```
+  
+Sample Sizes  
+  
+```{r hbs_samples} 
+countSampleSizes(voom_csp$targets, "stimulation", 
+                 c("visit", "vaccine")) %>%
+  headerKable(labels=c("visit", "vaccine"), levels=c(2,2))
+```
+
+```{r run_it_hbs}
+all_cam <- lapply(analytes, applyGSEA, dat=voom_csp)
+names(all_cam) <- analytes
+
+## get number of signficant gene sets
+num_sigs <- sapply(all_cam, function(x) return(sum(x$FDR<=fdr_cut)),
+                   simplify=TRUE)
+out_sigs <- data.frame('significant sets'=sort(num_sigs,
+                                                decreasing=TRUE))
+
+## get significant gene sets
+sigs <- lapply(all_cam, function(x) return(x[x$FDR <= fdr_cut,]))
+
+```
+
+```{r out_hbs}
+headerKable(out_sigs)
+
+for(name in rownames(out_sigs)) {
+  tmp <- sigs[[name]]
+  if(nrow(tmp) > 0) {
+     knit_print.html(cat(paste("####", name, "{-} \n  \n")))
+     knit_print.html(cat(headerKable(tmp), "\n"))
+  }
+}
+
+```

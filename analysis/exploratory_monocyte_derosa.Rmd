@@ -127,10 +127,12 @@ logit_pvals %>%
 
  ## plot boxplots of log10 ratio to case/control
  ggplot(case_data[visit=="M0"], aes(x=case, y=Frequency)) + 
-   geom_boxplot() + xlab("case") + facet_wrap(~Population) + ggtitle("M0")
+   geom_boxplot() + xlab("case") + facet_wrap(~Population, scale="free") +
+  ggtitle("M0")
 
  ggplot(case_data[visit=="M3"], aes(x=case, y=Frequency)) + 
-   geom_boxplot() + xlab("case") + facet_wrap(~Population) + ggtitle("M3")
+   geom_boxplot() + xlab("case") + facet_wrap(~Population, scale="free") +
+   ggtitle("M3")
 
 ```
 
