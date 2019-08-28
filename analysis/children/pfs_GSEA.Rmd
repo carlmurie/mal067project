@@ -1,0 +1,106 @@
+
+
+```{r}
+
+pfs <- prune_meta
+pfs$targets <- dplyr::inner_join(pfs$targets, data, by=c("sid"))
+
+form <- "~plate + total_reads + age_weeks + PFS*stimulation"
+fdr_cut <- 0.2
+
+countSampleSizes(pfs$targets, "visit", 
+                 c("stimulation", "age", "vaccine")) %>%
+  headerKable(labels=c("stimulation", "age", "vaccine"),
+              levels=c(2,2,2))
+
+```
+  
+linear model: `r form`  
+FDR cutoff: `r fdr_cut`  
+  
+### Both  
+  
+```{r}
+
+design_pfs <- model.matrix(formula(form), pfs$targets)
+coef <- paste0("PFS:stimulation", stim)
+
+cam <- as_tibble(camera(pfs, btm_ind, design=design_pfs, contrast=coef),
+                        rownames="geneset")
+summ <- sum(cam$FDR <= fdr_cut)
+
+if(summ >0) {
+      cam %>%
+        filter(FDR < fdr_cut) %>%
+        mutate(FDR = signif(FDR, 4),
+               PValue = signif(PValue, 4)) %>%
+        datatable()
+  } else {
+     cat("No significant gene-sets found")
+  }
+```
+
+
+### Young  
+  
+```{r}
+
+prune_young <- pfs[,pfs$targets$age=="young"]
+## countSampleSizes(prune_young$targets, "visit", c("stimulation", "age")) %>%
+##   headerKable(labels=c("stimulation", "age"), levels=c(4,2))
+
+design_pfs <- model.matrix(formula(form), prune_young$targets)
+coef <- "PFS"
+
+cam <- as_tibble(camera(prune_young, btm_ind, design=design_pfs, contrast=coef),
+                        rownames="geneset")
+summ <- c(summ, sum(cam$FDR <= fdr_cut))
+
+if(sum(cam$FDR <= fdr_cut) >0) {
+      cam %>%
+        filter(FDR < fdr_cut) %>%
+        mutate(FDR = signif(FDR, 4),
+               PValue = signif(PValue, 4)) %>%
+        datatable()
+  } else {
+     cat("No significant gene-sets found")
+   }
+```
+
+### Old  
+  
+```{r}
+
+prune_old <- pfs[,pfs$targets$age=="old"]
+## countSampleSizes(prune_old$target, "visit", c("stimulation", "age")) %>%
+## headerKable(labels=c("stimulation", "age"), levels=c(4,2))
+
+design_pfs <- model.matrix(formula(form), prune_old$targets)
+coef <- "PFS"
+
+cam <- as_tibble(camera(prune_old, btm_ind, design=design_pfs, contrast=coef),
+                        rownames="geneset")
+summ <- c(summ, sum(cam$FDR <= fdr_cut))
+
+if(sum(cam$FDR <= fdr_cut) >0) {
+      cam %>%
+        filter(FDR < fdr_cut) %>%
+        mutate(FDR = signif(FDR, 4),
+               PValue = signif(PValue, 4)) %>%
+        datatable()
+  } else {
+     cat("No significant gene-sets found")
+   }
+```
+
+## GSEA Summary  
+  
+Number of significant gene sets
+  
+```{r}
+matrix(summ, ncol=1) %>%
+  set_rownames(c("both", "young", "old")) %>%
+  headerKable()
+
+```
+

@@ -1,0 +1,106 @@
+```{r}
+
+pfs <- prune_meta
+pfs$targets <- dplyr::inner_join(pfs$targets, data, by=c("sid"))
+
+form <- "~plate + total_reads + age_weeks + PFS*stimulation"
+fdr_cut <- 0.2
+coeff <- paste0("PFS:stimulation", stim)
+
+## select subset of results from 'topTable' results
+colInd <- c("logFC", "P.Value", "adj.P.Val")
+
+
+##countSampleSizes(pfs$targets, "visit", c("stimulation", "age")) %>%
+##  headerKable(labels=c("stimulation", "age"), levels=c(4,2))
+
+```
+  
+linear model: `r form`  
+FDR cutoff: `r fdr_cut`  
+  
+### Both  
+  
+```{r}
+
+design_pfs <- model.matrix(formula(form), pfs$targets)
+
+ fit1 <- lmFit(pfs, design_pfs)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ tmp_pfs <- topTable(fit2, number=Inf, coef=coeff, sort="P")
+ pfs_sig <- signif(tmp_pfs[tmp_pfs$adj.P.Val <= fdr_cut, colInd], 3)
+ colnames(pfs_sig) <- c("log FC",  "P.value", "FDR")
+ summ <- nrow(pfs_sig)
+
+if(summ >0) {
+       pfs_sig %>%
+        datatable()
+  } else {
+     cat("No significant gene-sets found")
+  }
+```
+
+
+### Young  
+  
+```{r}
+
+pfs_young <- pfs[,pfs$targets$age=="young"]
+## countSampleSizes(prune_young$targets, "visit", c("stimulation", "age")) %>%
+##   headerKable(labels=c("stimulation", "age"), levels=c(4,2))
+
+design_pfs <- model.matrix(formula(form), pfs_young$targets)
+
+ fit1 <- lmFit(pfs_young, design_pfs)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ tmp_pfs <- topTable(fit2, number=Inf, coef=coeff, sort="P")
+ pfs_sig <- signif(tmp_pfs[tmp_pfs$adj.P.Val <= fdr_cut, colInd], 3)
+ colnames(pfs_sig) <- c("log FC",  "P.value", "FDR")
+ summ <- c(summ, nrow(pfs_sig))
+
+if(nrow(pfs_sig) >0) {
+       pfs_sig %>%
+        datatable()
+  } else {
+     cat("No significant gene-sets found")
+  }
+
+```
+
+### Old  
+  
+```{r}
+
+pfs_old <- pfs[,pfs$targets$age=="old"]
+## countSampleSizes(prune_young$targets, "visit", c("stimulation", "age")) %>%
+##   headerKable(labels=c("stimulation", "age"), levels=c(4,2))
+
+design_pfs <- model.matrix(formula(form), pfs_old$targets)
+
+ fit1 <- lmFit(pfs_old, design_pfs)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ tmp_pfs <- topTable(fit2, number=Inf, coef=coeff, sort="P")
+ pfs_sig <- signif(tmp_pfs[tmp_pfs$adj.P.Val <= fdr_cut, colInd], 3)
+ colnames(pfs_sig) <- c("log FC",  "P.value", "FDR")
+ summ <- c(summ, nrow(pfs_sig))
+
+if(nrow(pfs_sig) >0) {
+       pfs_sig %>%
+        datatable()
+  } else {
+     cat("No significant gene-sets found")
+  }
+
+```
+
+## DEG Summary  
+  
+Number of significant gene sets
+  
+```{r}
+matrix(summ, ncol=1) %>%
+  set_rownames(c("both", "young", "old")) %>%
+  headerKable()
+
+```
+

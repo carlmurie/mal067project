@@ -1,0 +1,196 @@
+##`r sigSetName` {.tabset .tabset-fade .tabset-pills}  
+
+```{r}
+## get genes for this gene-set
+sigSet <- btm_ind[[sigSetName]]
+```
+
+
+```{r}
+
+## combine rnaseq reads with meta data
+gene_dt <- melt(mal067_voom$E[sigSet,])
+dplyr::inner_join(prune_meta$targets, gene_dt, by=c("col_id" = "Var2")) %>%
+  dplyr::rename(gene=Var1) %>%
+  mutate(gene=as.character(gene)) ->
+  gene_dt
+
+## join case factor to flow data
+dplyr::inner_join(gene_dt, data, by=c("sid")) %>%
+  as.data.table() ->
+  all_DT
+```
+  
+### Both
+
+##### Sample size
+
+```{r}
+countSampleSizes(all_DT[!duplicated(sid)], "visit", 
+                 c("case", "stimulation", "age")) %>%
+  headerKable(labels=c("case", "stimulation", "age"), levels=c(3,4,2))
+```
+
+```{r}
+corAllClass <- all_DT[,.(pearson=signif(cor(value, PFS), 3),
+                         spearman=signif(cor(value, PFS, method="spearman"), 3))]
+
+corGeneClass <- all_DT[,.(pearson=signif(cor(value, PFS), 3),
+                          spearman=signif(cor(value, PFS, method="spearman"), 3)),
+              by=.(gene)]
+```
+  
+##### Correlation: all genes together  
+  
+```{r}
+corAllClass %>%
+mutate(pearson=cell_spec(pearson, color=ifelse(pearson >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+mutate(spearman=cell_spec(spearman, color=ifelse(spearman >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+headerKable()
+```
+
+##### Correlation plots  
+  
+```{r}
+
+new_cor <- melt(corGeneClass, measure=c("pearson", "spearman"))
+ggplot(melt(corGeneClass, measure=c("pearson", "spearman")), 
+       aes(x=variable, y=value)) + geom_boxplot() + ylim(-1,1) + xlab("type") +
+  ylab("correlation") + geom_hline(yintercept=0, linetype="dashed", color="red")
+```
+
+##### Correlation tables  
+ 
+```{r}
+
+corGeneClass %>% 
+  mutate(pearson=cell_spec(pearson, color=ifelse(pearson >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+  mutate(spearman=cell_spec(spearman,color=ifelse(spearman >= 0.2 | pearson<= -0.2, 
+                                        "red", "black"))) %>%
+headerKable()
+```
+
+
+### Young
+
+```{r}
+all_DT %>%
+  filter(age=="young") %>%
+  data.table() ->
+  young_DT
+```
+
+##### Sample size
+
+```{r}
+countSampleSizes(young_DT[!duplicated(sid)], "visit", 
+                 c("case", "stimulation", "age")) %>%
+  headerKable(labels=c("case", "stimulation", "age"), levels=c(3,4,2))
+```
+
+```{r}
+corAllClass <- young_DT[,.(pearson=signif(cor(value, PFS), 3),
+                         spearman=signif(cor(value, PFS, method="spearman"), 3))]
+
+corGeneClass <- young_DT[,.(pearson=signif(cor(value, PFS), 3),
+                          spearman=signif(cor(value, PFS, method="spearman"), 3)),
+              by=.(gene)]
+```
+  
+##### Correlation: all genes together  
+  
+```{r}
+corAllClass %>%
+mutate(pearson=cell_spec(pearson, color=ifelse(pearson >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+mutate(spearman=cell_spec(spearman, color=ifelse(spearman >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+headerKable()
+```
+
+##### Correlation plots  
+  
+```{r}
+
+new_cor <- melt(corGeneClass, measure=c("pearson", "spearman"))
+ggplot(melt(corGeneClass, measure=c("pearson", "spearman")), 
+       aes(x=variable, y=value)) + geom_boxplot() + ylim(-1,1) + xlab("type") +
+  ylab("correlation") + geom_hline(yintercept=0, linetype="dashed", color="red")
+```
+
+##### Correlation tables  
+ 
+```{r}
+
+corGeneClass %>% 
+  mutate(pearson=cell_spec(pearson, color=ifelse(pearson >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+  mutate(spearman=cell_spec(spearman, color=ifelse(spearman >= 0.2 | pearson<= -0.2, 
+                                        "red", "black"))) %>%
+headerKable()
+```
+
+
+### Old  
+  
+```{r}
+all_DT %>%
+  filter(age=="old") %>%
+  data.table() ->
+  old_DT
+```
+
+##### Sample size  
+  
+```{r}
+countSampleSizes(old_DT[!duplicated(sid)], "visit", 
+                 c("case", "stimulation", "age")) %>%
+  headerKable(labels=c("case", "stimulation", "age"), levels=c(3,4,2))
+```
+
+```{r}
+corAllClass <- old_DT[,.(pearson=signif(cor(value, PFS), 3),
+                         spearman=signif(cor(value, PFS, method="spearman"), 3))]
+
+corGeneClass <- old_DT[,.(pearson=signif(cor(value, PFS), 3),
+                          spearman=signif(cor(value, PFS, method="spearman"), 3)),
+              by=.(gene)]
+```
+  
+##### Correlation: all genes together  
+  
+```{r}
+corAllClass %>%
+mutate(pearson=cell_spec(pearson, color=ifelse(pearson >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+mutate(spearman=cell_spec(spearman, color=ifelse(spearman >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+headerKable()
+```
+
+##### Correlation plots  
+  
+```{r}
+
+new_cor <- melt(corGeneClass, measure=c("pearson", "spearman"))
+ggplot(melt(corGeneClass, measure=c("pearson", "spearman")), 
+       aes(x=variable, y=value)) + geom_boxplot() + ylim(-1,1) + xlab("type") +
+  ylab("correlation") + geom_hline(yintercept=0, linetype="dashed", color="red")
+```
+
+##### Correlation tables  
+ 
+```{r}
+
+corGeneClass %>% 
+  mutate(pearson=cell_spec(pearson, color=ifelse(pearson >= 0.2 | pearson <= -0.2, 
+                                        "red", "black"))) %>%
+  mutate(spearman=cell_spec(spearman, color=ifelse(spearman >= 0.2 | pearson<= -0.2, 
+                                        "red", "black"))) %>%
+headerKable()
+```
+
+
