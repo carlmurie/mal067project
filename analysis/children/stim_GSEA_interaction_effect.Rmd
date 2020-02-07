@@ -1,6 +1,6 @@
 
 
-```{r load-packages}
+```{r}
 library(RNASeqUtilities)
 library(Biobase)
 library(GSEABase)
@@ -9,18 +9,19 @@ library(limma)
 library(tidyverse)
 library(magrittr)
 library(here)
+library(data.table)
 
 source(here("code", "mal_utilities.R"))
 ```
 
-```{r load-data}
+```{r}
 library(mal067data)
 data(mal067_eset)
-meta_dt <- as.tibble(pData(mal067_eset))
+meta_dt <- as_tibble(pData(mal067_eset))
 ```
 
 
-```{r set-parameters}
+```{r}
 SHOW_SAMPLE_SIZE <- TRUE
 
 ## parameters set by parent: stim, 
@@ -28,6 +29,9 @@ SHOW_SAMPLE_SIZE <- TRUE
 fdr_cut <- 0.2
 p_cut <- 0.01
 min_gene_set <- 5
+form_interact_vac_both <- "~plate + total_reads + age + pid + vaccine*stimulation"
+form_interact_dis_both <- "~plate + total_reads + age + pid + malaria_status*stimulation"
+
 form_interact_vac <- "~plate + total_reads + age_weeks + pid + vaccine*stimulation"
 form_interact_dis <- "~plate + total_reads + age_weeks + pid + case*stimulation"
 
@@ -107,11 +111,65 @@ headerKable(labels=c("vaccine", "case", "age"), levels=c(2,2,2),
 ```{r vac_analysis}
 ################## vaccine analysis ############################
 
+coeff <- paste0("vaccinertss:stimulation", stim)
+
+## select subset of results from 'topTable' results
+colInd <- c("logFC", "P.Value", "adj.P.Val")
+
 cam_vac <- runGSEA(mal_vac, 
                    form_interact_vac,
-                   coef=paste0("vaccinertss:stimulation", stim))
-numSig <- sum(cam_vac$FDR <= fdr_cut)
+                   coef=coeff)
+numSig <- num_vac <- sum(cam_vac$FDR <= fdr_cut)
 
+## apply DEG to determine driver genes
+design <- model.matrix(formula(form_interact_vac), pData(mal_vac))
+voom_vac <- voom(mal_vac, design)
+
+ fit1 <- lmFit(voom_vac, design)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ tmp <- topTable(fit2, number=Inf, coef=coeff, sort="P")
+ sig_vac <- signif(tmp[, colInd], 3)
+ colnames(sig_vac) <- c("logFC",  "P.value", "FDR")
+ 
+ suffix <- paste(time, stim, sep="_")
+ write_csv(tmp,  paste0(here("output/manuscript/"), "DEG_interaction_vaccine__", suffix, ".csv"))
+
+```
+
+###vaccine: no malaria
+
+```{r}
+################## vaccine analysis ############################
+
+coeff <- paste0("vaccinertss:stimulation", stim)
+
+## select subset of results from 'topTable' results
+colInd <- c("logFC", "P.Value", "adj.P.Val")
+
+## select only subjects without clinical malaria
+mal_vac_dis <- mal_vac[,mal_vac$malaria_status==0]
+
+cam_vac_dis <- runGSEA(mal_vac_dis, 
+                   form_interact_vac,
+                   coef=coeff)
+```
+
+###vaccine: malaria
+
+```{r}
+################## vaccine analysis ############################
+
+coeff <- paste0("vaccinertss:stimulation", stim)
+
+## select subset of results from 'topTable' results
+colInd <- c("logFC", "P.Value", "adj.P.Val")
+
+## select only subjects without clinical malaria
+mal_vac_nodis <- mal_vac[,mal_vac$malaria_status==1]
+
+cam_vac_nodis <- runGSEA(mal_vac_nodis, 
+                   form_interact_vac,
+                   coef=coeff)
 ```
 
 ###disease  
@@ -120,10 +178,27 @@ numSig <- sum(cam_vac$FDR <= fdr_cut)
 
 ################## disease analysis ############################
 
+coeff <-paste0("casecase:stimulation", stim)
 cam_dis <- runGSEA(mal_dis, 
                    form_interact_dis,
-                   coef=paste0("casecase:stimulation", stim))
-summary_tab <- rbind(c(numSig, sum(cam_dis$FDR <= fdr_cut)))
+                   coef=coeff)
+num_dis <- sum(cam_dis$FDR <= fdr_cut)
+summary_tab <- rbind(c(num_vac, num_dis))
+
+## apply DEG to determine driver genes
+design <- model.matrix(formula(form_interact_dis), pData(mal_dis))
+voom_dis <- voom(mal_dis, design)
+
+ fit1 <- lmFit(voom_dis, design)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ tmp <- topTable(fit2, number=Inf, coef=coeff, sort="P")
+ tmp$gene <- rownames(tmp)
+ sig_dis <- signif(tmp[, colInd], 3)
+ colnames(sig_dis) <- c("logFC",  "P.value", "FDR")
+ 
+ suffix <- paste(time, stim, sep="_")
+ write_csv(tmp,  paste0(here("output/manuscript/"), "DEG_interaction_disease__", suffix, ".csv"))
+
 ```
 
 ```{r write_output}
@@ -156,7 +231,7 @@ write_csv(outie, paste0(here("output/"), file, ".csv"))
   
 ```{r dis_vac}
 
-if(numSig == 0) {
+if(num_vac == 0) {
   cat("No significant gene-sets for vaccine comparison")
 } else {
   cam_vac %>%
@@ -175,6 +250,8 @@ if(numSig == 0) {
 }
 
 ```
+
+
 
 
 ##young age group {.tabset .tabset-fade .tabset-pills}
@@ -358,3 +435,116 @@ if(numSig == 0) {
 dimnames(summary_tab) <- list(c("both", "young", "old"), c("vaccine", "disease"))
 headerKable(summary_tab, title="Number of significant gene-sets")
 ```
+
+
+#Graph of deltas (stim - dmso) for disease vaccine interaction  
+  
+  
+```{r}
+## read in child file for rendering
+child1 <- here::here("analysis/children", "gsea_plot_delta_genes.Rmd")
+childy2 <- read_file(child1)
+```
+
+  
+```{r}
+
+all_sig_vac_genes <- all_sig_dis_genes <- NULL
+
+## reconstruct deltas and put in form of an ExpressionSet
+stim_d <- paste0(stim, "_d")
+
+deltas <- readRDS(paste0(here::here(), "/output/stim_deltas.rds"))
+
+deltas %>%
+  dplyr::filter(visit==time) %>%
+  dplyr::select(c("genenames", "col_id", stim_d)) %>%
+  dplyr::left_join(mal067_voom$targets[,c("col_id", "vaccine", "malaria_status")],
+            by="col_id") ->
+  delta
+
+```
+  
+
+
+```{r}
+set <- cam_vac$geneset[1]
+all_sig_genes <- NULL
+
+```
+
+
+`r paste(knit_child(text = childy2), collapse = '\n')`
+</br>
+   
+
+```{r}
+set <- cam_vac$geneset[2]
+all_sig_genes <- NULL
+
+```
+
+
+`r paste(knit_child(text = childy2), collapse = '\n')`
+</br>
+   
+```{r}
+set <- cam_dis$geneset[1]
+all_sig_genes <- NULL
+
+```
+
+
+`r paste(knit_child(text = childy2), collapse = '\n')`
+</br>
+   
+
+```{r}
+set <- cam_dis$geneset[2]
+all_sig_genes <- NULL
+
+```
+
+
+`r paste(knit_child(text = childy2), collapse = '\n')`
+</br>
+ 
+#DEG analysis {.tabset .tabset-fade .tabset-pills}  
+  
+##vaccine  
+  
+```{r}
+
+ summ <- sum(sig_vac$FDR <= fdr_cut)
+ sig_vac$genes <- rownames(sig_vac)
+
+ if(summ >0) {
+     sig_vac %>% 
+     filter(FDR <= fdr_cut) %>%
+     select(genes, everything()) %>%
+        datatable(rownames=FALSE)
+  } else {
+     cat("No significant gene-sets found")
+  }
+```
+
+##disease  
+  
+```{r}
+
+ summ <- sum(sig_dis$FDR <= fdr_cut)
+ sig_dis$genes <- rownames(sig_dis)
+
+
+ if(summ >0) {
+     sig_dis %>%
+     select(genes, everything()) %>%
+     filter(FDR <= fdr_cut) %>%
+     datatable(rownames=TRUE)
+  } else {
+     cat("No significant gene-sets found")
+  }
+```
+
+  
+  

@@ -17,7 +17,7 @@ source(here("code", "mal_utilities.R"))
 ```{r load-data}
 library(mal067data)
 data(mal067_eset)
-meta_dt <- as.tibble(pData(mal067_eset))
+meta_dt <- as_tibble(pData(mal067_eset))
 ```
 
 
@@ -29,8 +29,10 @@ SHOW_SAMPLE_SIZE <- TRUE
 fdr_cut <- 0.2
 p_cut <- 0.01
 min_gene_set <- 5
-form_interact_vac <- "~plate + total_reads + age_weeks + vaccine"
-form_interact_dis <- "~plate + total_reads + age_weeks + case"
+form_interact_vac_both <- "~plate + total_reads + age + vaccine"
+form_interact_dis_both <- "~plate + total_reads + age + case"
+form_interact_vac <- "~plate + total_reads + vaccine"
+form_interact_dis <- "~plate + total_reads + case"
 ##form_interact_dis <- "~plate + total_reads + age_weeks + malaria_status"
 
 coef_dis <- "casecase"
@@ -115,7 +117,7 @@ headerKable(labels=c("vaccine", "case", "age"), levels=c(2,2,2),
 ################## vaccine analysis ########################
 
 cam_vac <- runGSEA(mal_vac, 
-                   form_interact_vac,
+                   form_interact_vac_both,
                    coef="vaccinertss")
 numSig <- sum(cam_vac$FDR <= fdr_cut)
 
@@ -130,7 +132,7 @@ write_csv(cam_vac, paste0(here("output/"), "vaccine_both_", suffix, ".csv"))
 ################## disease analysis #######################
 
 cam_dis <- runGSEA(mal_dis, 
-                   form_interact_dis,
+                   form_interact_dis_both,
                    ##coef="casecase")
                    coef=coef_dis)
 summary_tab <- rbind(c(numSig, sum(cam_dis$FDR <= fdr_cut)))
@@ -171,6 +173,8 @@ write_csv(dis_out, paste0(here("output/"), "disease_ds_both_", suffix, ".csv"))
 
 ## combine allsignificant gene sets
 cam_vac %>%
+  filter(FDR <= fdr_cut) %>%
+  filter(!grepl("TBA", geneset)) %>%
   dplyr::left_join(cam_dis[,c("geneset", "Direction", "PValue", "FDR")],
                    by="geneset") %>%
   plyr::rename(c("Direction.x"="Direction_vac")) %>%
@@ -196,7 +200,8 @@ outie %>%
   all_sigs
 
 outie %>%
-  filter(geneset %in% all_sigs) %>%
+  ##filter(geneset %in% all_sigs) %>%
+  dplyr::arrange(log10_Pval_vac) %>%
   dplyr::select(c(geneset, log10_Pval_vac, log10_Pval_dis)) %>%
   column_to_rownames("geneset") %>%
   plyr::rename(c(log10_Pval_vac="vaccine",
@@ -205,8 +210,8 @@ outie %>%
   heat_mat
 
 heatmap3(heat_mat, Rowv=NA, Colv=NA, scale="none", balanceColor=TRUE, 
-         cexRow=1.25, cexCol=1.25, showRowDendro=FALSE, 
-         col=colorRampPalette(c("firebrick3", "white", "navy"))(1024))
+         cexRow=0.50, cexCol=1.25, showRowDendro=FALSE, margins=c(5,8),
+         col=colorRampPalette(c("navy", "white", "firebrick3"))(1024))
 
 ```
 

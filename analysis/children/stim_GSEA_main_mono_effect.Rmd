@@ -1,0 +1,286 @@
+
+
+```{r}
+library(RNASeqUtilities)
+library(Biobase)
+library(GSEABase)
+library(DT)
+library(limma)
+library(tidyverse)
+library(magrittr)
+library(here)
+library(data.table)
+
+source(here("code", "mal_utilities.R"))
+```
+
+```{r}
+library(mal067data)
+data(mal067_eset)
+meta_dt <- as_tibble(pData(mal067_eset))
+```
+
+
+```{r}
+
+##stim="hbs"
+##time="M3"
+
+flow <- as.data.frame(read_csv(paste0(here::here(),
+                                      "/data/DeRosaMonocyteFrequencies.csv")))
+
+## get common data and remove duplicated sid in mal067_meta_flow
+common <- intersect(flow$PTID, meta_dt$sid)
+meta_dt %>%
+  filter(sid %in% common) ->
+  ##dplyr::select(sid, visit) -> 
+  mal_filtered
+
+## join case factor to flow data
+dplyr::right_join(flow, mal_filtered, by=c("PTID"="sid")) %>%
+  ##mutate(case_logit:=as.numeric(plyr::mapvalues(as.character(case),
+  ##                                        from=c("control","case"), 
+  ##                                        to=c(0,1)))) %>%
+  mutate(VISITNO=factor(VISITNO, levels=c("M0", "M3"))) ->
+  flow_dt
+
+rownames(flow_dt) <- flow_dt$col_id
+mono_eset <- mal067_eset[, flow_dt$col_id]
+pData(mono_eset) <- flow_dt
+
+if(sum(colnames(mono_eset) != mono_eset$col_id) >0) {
+  stop("Error in joining monocytes with rnaseq data")
+}
+
+```
+
+```{r}
+SHOW_SAMPLE_SIZE <- TRUE
+
+## only do vaccine analysis for time point M3
+DO_VACCINE <- ifelse(time=="M3", TRUE, FALSE)
+
+## parameters set by parent: stim, 
+
+fdr_cut <- 0.2
+p_cut <- 0.01
+min_gene_set <- 5
+form_interact_vac <- "~plate + total_reads + age_weeks + pid + monocyte + vaccine"
+form_interact_dis <- "~plate + total_reads + age_weeks + pid + monocyte + case"
+
+## store number of significant gene-sets for each comparison
+summary_tab <- NULL
+```
+
+```{r }
+## set up GSEA analysis
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+```
+
+
+```{r }
+################### vaccine/disease*stimulation analysis ########################
+
+## vaccine: select subset of expressionSet
+pData(mono_eset) %>% 
+  filter(stimulation == "dmso" | stimulation == stim) %>% 
+  filter(visit == time) %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation levels
+mal_vac <- mono_eset[, sample_vac] 
+mal_vac$stimulation <- fct_drop(mal_vac$stimulation)
+
+```
+
+**vaccine linear model:** `r form_interact_vac`  
+  
+**vaccine filtering   :**  `r time`
+
+**disease linear model:** `r form_interact_dis`   
+  
+**disease filtering   :** `r time`, case/control, rtss  
+
+```{r}
+## disease: select subset of expressionSet
+pData(mono_eset) %>% 
+  filter(stimulation == stim) %>% 
+  filter(visit == time) %>%
+  filter(case != "neither") %>%
+  filter(vaccine == "rtss") %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation/case levels
+mal_dis <- mono_eset[, sample_vac] 
+mal_dis$stimulation <- fct_drop(mal_dis$stimulation)
+mal_dis$case <- fct_drop(mal_dis$case)
+
+```
+
+###both age groups (young and old) {.tabset .tabset-fade .tabset-pills}
+
+```{r eval=SHOW_SAMPLE_SIZE}
+
+if(DO_VACCINE) {
+    ## get sample sizes
+    countSampleSizes(pData(mal_vac), "stimulation", 
+                     c("vaccine", "case", "age")) %>%
+    headerKable(labels=c("vaccine", "case", "age"), levels=c(2,3,2), 
+                title="vaccine sample size")
+}
+
+## get sample sizes
+countSampleSizes(pData(mal_dis), "stimulation", 
+                 c("vaccine", "case", "age")) %>%
+headerKable(labels=c("vaccine", "case", "age"), levels=c(2,2,2), 
+            title="disease sample size")
+
+```
+  
+```{r} 
+
+runMonoGSEA <- function(mal_dat, form, coef, btm=btm_ind, fdrCut=fdr_cut) {
+
+  monos <- c("Inflammatory", "Intermediate", 
+             "ml_ratio", "ml_ratio_flam", "ml_ratio_inter")
+  
+  ## replace 'monocyte' with actual variable name
+  form_spec <- str_replace(form, "monocyte", "Classical")
+  
+  ## voom the data with the linear model
+  design_vac <- model.matrix(formula(form_spec), mal_dat)
+  mal_voom_sm <- voom(mal_dat, design=design_vac)
+
+  ## run camera
+  as_tibble(camera(mal_voom_sm, btm, design=design_vac, contrast=coef),
+                       rownames="geneset") ->  
+    ##dplyr::select(-c(PValue)) ->
+    cam_vac
+  
+  ## iterate across monocyte types
+  for(mono in monos) {
+    
+    ## replace 'monocyte' with actual variable name
+    form_spec <- str_replace(form, "monocyte", mono)
+  
+    ## voom the data with the linear model
+    design_vac <- model.matrix(formula(form_spec), mal_dat)
+    mal_voom_sm <- voom(mal_dat, design=design_vac)
+
+    ## run camera
+    cam_tmp <- as_tibble(camera(mal_voom_sm, btm, design=design_vac, contrast=coef),
+                         rownames="geneset")
+    
+    cam_vac <- dplyr::left_join(cam_vac, 
+                                cam_tmp[,c("geneset","Direction", "PValue", "FDR")],
+                                by="geneset")
+  } ## end for mono
+  
+  col_labs <- CJ(monocs=c("Class", "Inflam", "Inter",
+                          "Class_Ratio", "Inflam_ratio", "Inter_ratio"), 
+                 labs=c("Direction", "p-value", "FDR"),
+                 sorted=FALSE)[, paste(monocs, labs, sep ="_")]
+  
+  colnames(cam_vac) <- c("geneset", "NGenes", col_labs)
+  return(cam_vac)
+} ## end runMonoGSEA
+
+```
+  
+  
+```{r}
+
+if(DO_VACCINE) {
+    
+    cam_vac <- runMonoGSEA(mal_vac, 
+                       form_interact_vac,
+                       coef="vaccinertss")
+    
+    cam_vac %>%
+      dplyr::select(contains("FDR")) %>%
+      apply(2, function(x) return(sum(x<=fdr_cut))) ->
+      vac_res
+}
+
+
+cam_dis <- runMonoGSEA(mal_dis, 
+                   form_interact_dis,
+                   coef="casecase")
+
+cam_dis %>%
+  dplyr::select(contains("FDR")) %>%
+  apply(2, function(x) return(sum(x<=fdr_cut))) ->
+  dis_res
+
+```
+  
+Number of significant gene-sets at FDR cutoff <= `r fdr_cut`  
+  
+```{r}
+
+if(DO_VACCINE){
+    tab <- rbind(vac_res, dis_res)
+    rownames(tab) <- c("vaccine", "disease")
+    colnames(tab) <- c("Classical", "Inflammatory", "Intermediate",
+                       "Class ratio", "Inflamm ratio", "Inter ratio")
+} else {
+    tab <- data.frame(matrix(dis_res, nrow=1))
+    rownames(tab) <- "disease"
+    colnames(tab) <- c("Classical", "Inflammatory", "Intermediate",
+                       "Class ratio", "Inflamm ratio", "Inter ratio")
+}
+headerKable(tab)
+```
+  
+####vaccine    
+`r if(DO_VACCINE) {htmltools::knit_print.html("####vaccine")}` 
+  
+```{r eval=DO_VACCINE}
+################## vaccine analysis ############################
+
+cam_vac %>%
+  dplyr::select(contains("FDR")) %>%
+  apply(1, function(x){return(sum(x<=fdr_cut))}) ->
+  sig_ind
+
+if(sum(sig_ind) > 0) {
+  cam_vac[sig_ind>0,] %>%
+    dplyr::select(-contains(c("Direction"))) %>%
+    dplyr::select(-contains(c("p-value"))) %>%
+    round_df(digits=3) %>%
+  datatable()
+} else {
+  htmltools::knit_print.html("No significant gene-sets")
+}
+
+  
+
+```
+
+####disease  
+
+```{r results="asis"}
+
+################## disease analysis ############################
+
+cam_dis %>%
+  dplyr::select(contains("FDR")) %>%
+  apply(1, function(x){return(sum(x<=fdr_cut))}) ->
+  sig_ind
+
+if(sum(sig_ind) > 0) {
+  cam_dis[sig_ind>0,] %>%
+     dplyr::select(-contains(c("Direction"))) %>%
+    dplyr::select(-contains(c("p-value"))) %>%
+    round_df(digits=3) %>%
+  datatable()
+} else {
+  htmltools::knit_print.html("No significant gene-sets")
+}
+
+```
+

@@ -1,0 +1,275 @@
+
+###`r set` 
+
+####Vaccine comparison   {.tabset .tabset-fade .tabset-pills}
+
+```{r}
+
+## get significant gsea-sets
+cam_vac %>%
+  dplyr::filter(FDR <= fdr_cut) %>%
+  pull(geneset)->
+  vac_sets
+
+## get genes for this geneset
+set_genes <- geneIds(btm_gtm)[[set]]
+delta %>%
+  filter(genenames %in% set_genes) %>%
+   mutate(disease=plyr::mapvalues(malaria_status,
+                                 from=c(0,1), 
+                        to=c("No", "Yes"))) %>%
+  data.table() ->
+  genes
+
+## DEG analysis ranked sig to not_sig
+sig_vac %>%
+  mutate(genenames=rownames(sig_vac)) %>%
+  filter(genenames %in% set_genes) %>%
+  mutate(logFC=signif(logFC, 3)) %>%
+  mutate(P.value=signif(P.value, 3)) %>%
+  mutate(FDR=signif(FDR, 3)) %>%
+  arrange(P.value) %>%
+  dplyr::select(genenames, everything()) %>%
+  mutate(index=1:length(logFC)) ->
+  deg
+
+## check deg names
+if(length(setdiff(deg$genenames, set_genes)) != 0) {
+  stop("deg plot gone wrong")
+}
+
+```
+  
+  
+#####Table of significant genes  
+  
+Pvalue cutoff <= `r p_cut`    
+    
+```{r}
+deg %>%
+  dplyr::select(-c(index)) %>%
+  filter(P.value <= p_cut) ->
+  sig_deg
+
+if(nrow(sig_deg) > 0) {
+   sig_deg %>%
+   headerKable()
+} else {
+  cat("No significant genes found")
+}
+all_sig_vac_genes <- c(all_sig_vac_genes, sig_deg$genenames)
+```
+  
+#####Plot of all genes  
+  
+```{r}
+
+##x <- c(0.05, seq(0.1,1, 0.1))
+##pval_quants <- unlist(lapply(x, function(x, dat=deg$P.value) {return(which.min(dat <= x))}))
+
+sig_genes <- deg$genenames[deg$P.value <= p_cut]
+nummie <- length(sig_genes)
+if(nummie == 0) {
+  num_ind <- 0
+} else {
+  num_ind <- 1:nummie
+}
+
+ggplot(deg, aes(x=-log10(P.value), y=logFC)) + geom_point() + 
+  ##gghighlight(P.Value <0.011, color="red", label_key=genenames,
+  ##            label_params=list(color="red"))
+  geom_point(data=deg[num_ind,], colour="red") +
+  ##annotate("text", x=1+15, y=deg$logFC[1], label=deg$genenames[1], 
+  ##         color="red") + 
+  ##annotate("text", x=2+25, y=deg$logFC[2], label=deg$genenames[2], 
+  ##         color="red") + 
+  geom_hline(yintercept=0, linetype="dashed", color="black") +
+  xlab("-log10(P.value") + 
+  geom_vline(xintercept=-log10(p_cut), linetype="dashed", color="blue", size=0.1) +
+ ##annotate("text", x=sig_ind+25, y=1, label="Pvalue <= 0.05", 
+  ##         color="blue", size=4) +
+  ##geom_line(aes(x=index, y=-c(1-P.value)), color="blue") +
+  ##scale_y_continuous(sec.axis = sec_axis(~.+1, name = "Pvalue")) +
+  theme( axis.line.y.right = element_line(color = "blue"), 
+       axis.ticks.y.right = element_line(color = "blue"),
+       axis.title.y.right= element_text(color = "blue"),
+       axis.text.y.right= element_text(color = "blue"))
+```
+  
+#####Plot signifcant genes  
+  
+```{r}
+## get data for all significant genes in geneset
+
+if(nummie > 0) {
+
+  genes %>%
+    filter(genenames %in% sig_genes) %>%
+  mutate(disease=plyr::mapvalues(malaria_status,
+                                 from=c(0,1), 
+                        to=c("No", "Yes"))) %>%
+  ##mutate(relevel(disease, "Yes")) %>%
+  mutate(cell=factor(paste(vaccine, disease, sep="_"),
+                     levels=c("rtss_Yes",
+                              "rtss_No",
+                              "comparator_Yes",
+                              "comparator_No"))) %>%
+  data.table() ->
+plot_dt
+
+  ggplot(plot_dt, aes(x=cell, y=stim_d, color=cell)) +
+    geom_boxplot() + facet_wrap(~genenames, scales="free") +
+    theme(axis.text.x=element_blank())
+}
+```
+
+
+```{r}
+
+if(nummie > 0) {
+  
+    ## plot means of each cell
+    plot_means <- genes[,(mean = mean(get(stim_d), na.rm=TRUE)), 
+                          by=list(genenames, vaccine, disease)]
+    plot_means$disease <- relevel(plot_means$disease, "No")
+    ggplot(plot_means, aes(x=disease, y=V1, group=vaccine)) + 
+      geom_line(aes(col=vaccine)) +
+      facet_wrap(~genenames, scales="free") +
+      ylab("log2 CPM")
+  
+} 
+
+```
+
+####Disease comparison  {.tabset .tabset-fade .tabset-pills}  
+  
+
+```{r}
+
+## get significant gsea-sets
+cam_dis %>%
+  dplyr::filter(FDR <= fdr_cut) %>%
+  pull(geneset)->
+  dis_sets
+
+
+## DEG analysis ranked sig to not_sig
+sig_dis %>%
+  mutate(genenames=rownames(sig_vac)) %>%
+  filter(genenames %in% set_genes) %>%
+  mutate(logFC=signif(logFC, 3)) %>%
+  mutate(P.value=signif(P.value, 3)) %>%
+  mutate(FDR=signif(FDR, 3)) %>%
+  arrange(P.value) %>%
+  dplyr::select(genenames, everything()) %>%
+  mutate(index=1:length(logFC)) ->
+  deg
+
+## check deg names
+if(length(setdiff(deg$genenames, set_genes)) != 0) {
+  stop("deg plot gone wrong")
+}
+
+```
+  
+  
+#####Table of significant genes  
+  
+Pvalue cutoff <= `r p_cut`    
+    
+```{r}
+deg %>%
+  dplyr::select(-c(index)) %>%
+  filter(P.value <= p_cut) ->
+  sig_deg
+
+if(nrow(sig_deg) > 0) {
+   sig_deg %>%
+   headerKable()
+} else {
+  cat("No significant genes found")
+}
+all_sig_vac_genes <- c(all_sig_vac_genes, sig_deg$genenames)
+```
+  
+#####Plot of all genes  
+  
+```{r}
+
+##x <- c(0.05, seq(0.1,1, 0.1))
+##pval_quants <- unlist(lapply(x, function(x, dat=deg$P.value) {return(which.min(dat <= x))}))
+
+sig_genes <- deg$genenames[deg$P.value <= p_cut]
+nummie <- length(sig_genes)
+if(nummie == 0) {
+  num_ind <- 0
+} else {
+  num_ind <- 1:nummie
+}
+
+ggplot(deg, aes(x=-log10(P.value), y=logFC)) + geom_point() + 
+  ##gghighlight(P.Value <0.011, color="red", label_key=genenames,
+  ##            label_params=list(color="red"))
+  geom_point(data=deg[num_ind,], colour="red") +
+  ##annotate("text", x=1+15, y=deg$logFC[1], label=deg$genenames[1], 
+  ##         color="red") + 
+  ##annotate("text", x=2+25, y=deg$logFC[2], label=deg$genenames[2], 
+  ##         color="red") + 
+  geom_hline(yintercept=0, linetype="dashed", color="black") +
+  xlab("-log10(P.value") + 
+  geom_vline(xintercept=-log10(p_cut), linetype="dashed", color="blue", size=0.1) +
+ ##annotate("text", x=sig_ind+25, y=1, label="Pvalue <= 0.05", 
+  ##         color="blue", size=4) +
+  ##geom_line(aes(x=index, y=-c(1-P.value)), color="blue") +
+  ##scale_y_continuous(sec.axis = sec_axis(~.+1, name = "Pvalue")) +
+  theme( axis.line.y.right = element_line(color = "blue"), 
+       axis.ticks.y.right = element_line(color = "blue"),
+       axis.title.y.right= element_text(color = "blue"),
+       axis.text.y.right= element_text(color = "blue"))
+```
+  
+#####Plot signifcant genes  
+  
+```{r}
+## get data for all significant genes in geneset
+
+if(nummie > 0) {
+
+  genes %>%
+    filter(genenames %in% sig_genes) %>%
+  mutate(disease=plyr::mapvalues(malaria_status,
+                                 from=c(0,1), 
+                        to=c("No", "Yes"))) %>%
+  ##mutate(relevel(disease, "Yes")) %>%
+  mutate(cell=factor(paste(vaccine, disease, sep="_"),
+                     levels=c("rtss_Yes",
+                              "rtss_No",
+                              "comparator_Yes",
+                              "comparator_No"))) %>%
+  data.table() ->
+plot_dt
+
+  ggplot(plot_dt, aes(x=cell, y=stim_d, color=cell)) +
+    geom_boxplot() + facet_wrap(~genenames, scales="free") +
+    theme(axis.text.x=element_blank())
+}
+```
+
+
+```{r}
+
+if(nummie > 0) {
+  
+    ## plot means of each cell
+    plot_means <- genes[,(mean = mean(get(stim_d), na.rm=TRUE)), 
+                          by=list(genenames, vaccine, disease)]
+    plot_means$disease <- relevel(plot_means$disease, "No")
+    ggplot(plot_means, aes(x=disease, y=V1, group=vaccine)) + 
+      geom_line(aes(col=vaccine)) +
+      facet_wrap(~genenames, scales="free") +
+      ylab("log2 CPM")
+  
+} 
+
+```
+

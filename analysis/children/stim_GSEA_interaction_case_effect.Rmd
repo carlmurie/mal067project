@@ -1,0 +1,496 @@
+
+
+```{r}
+library(RNASeqUtilities)
+library(Biobase)
+library(GSEABase)
+library(DT)
+library(limma)
+library(tidyverse)
+library(magrittr)
+library(here)
+library(data.table)
+library(heatmap3)
+
+source(here("code", "mal_utilities.R"))
+```
+
+```{r}
+library(mal067data)
+data(mal067_eset)
+meta_dt <- as_tibble(pData(mal067_eset))
+```
+
+
+```{r}
+DO_PDF <- FALSE
+SHOW_SAMPLE_SIZE <- TRUE
+
+## parameters set by parent: stim, 
+
+fdr_cut <- 0.2
+p_cut <- 0.01
+min_gene_set <- 5
+form_interact_vac_both <- "~plate + total_reads + age_weeks + pid + stimulation*vaccine"
+form_interact_dis_both <- "~plate + total_reads + age_weeks + pid + stimulation*case"
+
+## store number of significant gene-sets for each comparison
+summary_tab <- NULL
+```
+
+```{r genesets}
+## set up GSEA analysis
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+```
+
+# GSEA `r toupper(stim)`: vaccine/case stimulation interaction  
+  
+**vaccine linear model:** `r form_interact_vac_both`  
+  
+**vaccine filtering   :**  `r time`
+  
+```{r vaccine_data}
+################### vaccine/disease*stimulation analysis ########################
+
+## vaccine: select subset of expressionSet
+meta_dt %>% 
+  filter(stimulation == "dmso" | stimulation == stim) %>% 
+  filter(case != "neither") %>%
+  filter(visit == time) %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation levels
+mal_vac <- mal067_eset[, sample_vac] 
+mal_vac$case <- fct_drop(mal_vac$case)
+mal_vac$stimulation <- fct_drop(mal_vac$stimulation)
+
+coeff <- paste0("stimulation", stim, ":vaccinertss")
+
+## select subset of results from 'topTable' results
+colInd <- c("logFC", "P.Value", "adj.P.Val")
+
+```
+
+**disease linear model:** `r form_interact_dis_both`   
+  
+**disease filtering   :** `r time`, case/control, rtss  
+
+```{r disease_data}
+## disease: select subset of expressionSet
+meta_dt %>% 
+  filter(stimulation == "dmso" | stimulation == stim) %>% 
+  filter(visit == time) %>%
+  filter(case != "neither") %>%
+  filter(vaccine == "rtss") %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation/case levels
+mal_dis <- mal067_eset[, sample_vac] 
+mal_dis$stimulation <- fct_drop(mal_dis$stimulation)
+mal_dis$case <- fct_drop(mal_dis$case)
+
+```
+
+##both age groups (infant and children) {.tabset .tabset-fade .tabset-pills}
+
+```{r sample_size, eval=SHOW_SAMPLE_SIZE}
+
+## get sample sizes
+countSampleSizes(pData(mal_vac), "stimulation", 
+                 c("vaccine", "case", "age")) %>%
+headerKable(labels=c("vaccine", "case", "age"), levels=c(2,2,2), 
+            title="vaccine sample size")
+
+## get sample sizes
+countSampleSizes(pData(mal_dis), "stimulation", 
+                 c("vaccine", "case", "age")) %>%
+headerKable(labels=c("vaccine", "case", "age"), levels=c(2,2,2), 
+            title="disease sample size")
+
+```
+  
+###vaccine  
+
+```{r vac_analysis}
+################## vaccine analysis ############################
+
+cam_vac <- runGSEA(mal_vac, 
+                   form_interact_vac_both,
+                   coef=coeff)
+numSig <- num_vac <- sum(cam_vac$FDR <= fdr_cut)
+
+## apply DEG to determine driver genes
+design <- model.matrix(formula(form_interact_vac_both), pData(mal_vac))
+voom_vac <- voom(mal_vac, design)
+
+ fit1 <- lmFit(voom_vac, design)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ tmp <- topTable(fit2, number=Inf, coef=coeff, sort="P")
+ sig_vac <- signif(tmp[, colInd], 3)
+ colnames(sig_vac) <- c("logFC",  "P.value", "FDR")
+ 
+ suffix <- paste(time, stim, sep="_")
+ write_csv(tmp,  paste0(here("output/manuscript/"), "DEG_interaction_vaccine__", suffix, ".csv"))
+
+```
+
+###vaccine: case
+
+```{r}
+################## vaccine analysis ############################
+
+## select only subjects without clinical malaria
+mal_vac_dis <- mal_vac[,mal_vac$case=="case"]
+
+cam_vac_dis <- runGSEA(mal_vac_dis, 
+                   form_interact_vac_both,
+                   coef=coeff)
+```
+
+###vaccine: control
+
+```{r}
+################## vaccine analysis ############################
+
+## select only subjects without clinical malaria
+mal_vac_nodis <- mal_vac[,mal_vac$case=="control"]
+
+cam_vac_nodis <- runGSEA(mal_vac_nodis, 
+                   form_interact_vac_both,
+                   coef=coeff)
+```
+
+###disease: rts,s  
+
+```{r dis_analysis, results="asis"}
+
+################## disease analysis ############################
+
+coeff <-paste0("stimulation", stim, ":casecase")
+cam_dis <- runGSEA(mal_dis, 
+                   form_interact_dis_both,
+                   coef=coeff)
+num_dis <- sum(cam_dis$FDR <= fdr_cut)
+summary_tab <- rbind(c(num_vac, num_dis))
+
+## apply DEG to determine driver genes
+design <- model.matrix(formula(form_interact_dis_both), pData(mal_dis))
+voom_dis <- voom(mal_dis, design)
+
+ fit1 <- lmFit(voom_dis, design)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ tmp <- topTable(fit2, number=Inf, coef=coeff, sort="P")
+ tmp$gene <- rownames(tmp)
+ sig_dis <- signif(tmp[, colInd], 3)
+ colnames(sig_dis) <- c("logFC",  "P.value", "FDR")
+ 
+ suffix <- paste(time, stim, sep="_")
+ write_csv(tmp,  paste0(here("output/manuscript/"), "DEG_interaction_disease_rtss_", suffix, ".csv"))
+
+```
+
+###disease: comparator  
+
+```{r disease_comp}
+## disease: select subset of expressionSet
+meta_dt %>% 
+  filter(stimulation == "dmso" | stimulation == stim) %>% 
+  filter(visit == time) %>%
+  filter(case != "neither") %>%
+  filter(vaccine == "comparator") %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation/case levels
+mal_dis_comp <- mal067_eset[, sample_vac] 
+mal_dis_comp$stimulation <- fct_drop(mal_dis_comp$stimulation)
+mal_dis_comp$case <- fct_drop(mal_dis_comp$case)
+
+################## disease analysis ############################
+
+cam_dis_comp <- runGSEA(mal_dis_comp, 
+                   form_interact_dis_both,
+                   coef=coeff)
+num_dis_comp <- sum(cam_dis_comp$FDR <= fdr_cut)
+summary_tab <- rbind(c(num_vac, num_dis_comp))
+
+## apply DEG to determine driver genes
+design <- model.matrix(formula(form_interact_dis_both), pData(mal_dis_comp))
+voom_dis <- voom(mal_dis_comp, design)
+
+ fit1 <- lmFit(voom_dis, design)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ tmp <- topTable(fit2, number=Inf, coef=coeff, sort="P")
+ tmp$gene <- rownames(tmp)
+ sig_dis <- signif(tmp[, colInd], 3)
+ colnames(sig_dis) <- c("logFC",  "P.value", "FDR")
+ 
+ suffix <- paste(time, stim, sep="_")
+ write_csv(tmp,  paste0(here("output/manuscript/"),
+                        "DEG_interaction_disease_comparator_", suffix, ".csv"))
+
+
+```
+
+
+```{r write_output}
+
+cam_vac %>%
+  dplyr::left_join(cam_dis[,c("geneset", "Direction", "PValue", "FDR")],
+                   by="geneset") %>%
+  plyr::rename(c("Direction.x"="Direction_vac")) %>%
+  plyr::rename(c("PValue.x"="PValue_vac")) %>%
+  plyr::rename(c("FDR.x"="FDR_vac")) %>%
+  plyr::rename(c("Direction.y"="Direction_dis")) %>%
+  plyr::rename(c("PValue.y"="PValue_dis")) %>%
+  plyr::rename(c("FDR.y"="FDR_dis")) %>%
+  mutate(sign_vac=as.numeric(plyr::mapvalues(Direction_vac, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(log10_Pval_vac=sign_vac*-log10(PValue_vac)) %>%
+  mutate(sign_dis=as.numeric(plyr::mapvalues(Direction_dis, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+    mutate(log10_Pval_dis=sign_dis*-log10(PValue_dis)) ->
+  outie
+  
+file <- paste("GSEA", time, stim, "vac_dis_case", sep="_")
+write_csv(outie, paste0(here("output/manuscript/"), file, ".csv"))
+
+```
+
+###disease: rts,s, down-selected vaccine gene-sets  
+  
+```{r dis_vac_rtss}
+
+if(num_vac == 0) {
+  cat("No significant gene-sets for vaccine comparison")
+} else {
+  cam_vac %>%
+    filter(FDR <= fdr_cut) %$%
+    geneset ->
+    vac_sigs
+  
+  cam_dis %>%
+    filter(geneset %in% vac_sigs) %>%
+    mutate(FDR = p.adjust(PValue, method="BH")) %>%
+    kable(align=rep("c", ncol(cam_vac))) %>%
+        kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                      full_width=FALSE, position="left") %>%
+        scroll_box(height="300px")
+  
+}
+
+```
+
+###disease: comparator, down-selected vaccine gene-sets  
+  
+```{r dis_vac_comp}
+
+if(num_vac == 0) {
+  cat("No significant gene-sets for vaccine comparison")
+} else {
+  cam_vac %>%
+    filter(FDR <= fdr_cut) %$%
+    geneset ->
+    vac_sigs
+  
+  cam_dis_comp %>%
+    filter(geneset %in% vac_sigs) %>%
+    mutate(FDR = p.adjust(PValue, method="BH")) %>%
+    kable(align=rep("c", ncol(cam_vac))) %>%
+        kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                      full_width=FALSE, position="left") %>%
+        scroll_box(height="300px")
+  
+}
+
+```
+
+```{r dis_output}
+
+cam_dis %>%
+  plyr::rename(c("Direction"="Direction_rtss")) %>%
+  plyr::rename(c("PValue"="PValue_rtss")) %>%
+  plyr::rename(c("FDR"="FDR_rtss")) %>%
+  dplyr::select(-NGenes) %>%
+  mutate(sign_vac_rtss=as.numeric(plyr::mapvalues(Direction_rtss, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(log10_Pval_rtss=sign_vac_rtss*-log10(PValue_rtss)) ->
+    dis_rtss
+
+cam_dis_comp %>%
+  plyr::rename(c("Direction"="Direction_comp")) %>%
+  plyr::rename(c("PValue"="PValue_comp")) %>%
+  plyr::rename(c("FDR"="FDR_comp")) %>%
+  dplyr::select(-NGenes) %>%
+  mutate(sign_vac_comp=as.numeric(plyr::mapvalues(Direction_comp, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(log10_Pval_comp=sign_vac_comp*-log10(PValue_comp)) ->
+    dis_comp
+
+dis_rtss %>%
+  dplyr::left_join(dis_comp, by="geneset") ->
+  dis_out
+
+file <- paste("GSEA", time, stim, "dis_case_by_vac", sep="_")
+write_csv(dis_out, paste0(here("output/manuscript/"), file, ".csv"))
+
+```
+
+##Plots  
+  
+###heatmap of vaccine by disease (no down selection)
+  
+```{r} 
+
+## read in BTM module annotations
+btm_anno <- read_csv(here("data/btm_annotation_table_LNC.csv"))
+btm_anno$full_title <- paste0(btm_anno$`Module title`, " (", btm_anno$ID, ")")
+
+## get union of all significant 
+all_sigs <- sort(Reduce(union, list(cam_vac$geneset[cam_vac$FDR <= fdr_cut],
+                   cam_vac_dis$geneset[cam_vac_dis$FDR <= fdr_cut],
+                   cam_vac_nodis$geneset[cam_vac_nodis$FDR <= fdr_cut],
+                   cam_dis$geneset[cam_dis$FDR <= fdr_cut],
+                   cam_dis_comp$geneset[cam_dis_comp$FDR <= fdr_cut])))
+
+## don't make plots if there are no significant gene-sets
+CONTINUE <- !is_empty(all_sigs)
+
+```
+
+
+```{r heat1, eval=CONTINUE}
+
+## join genesets with their annotations
+all_sigs <- dplyr::left_join(data.frame(full_title=all_sigs), 
+                      btm_anno[,c("annotation", "full_title")],
+                      by="full_title")
+
+## extract -log10 signed pvalues for all genesets in all_sigs
+format_gs <- function(mat, sigs=all_sigs, fdr=fdr_cut) {
+  
+  mat %>%
+    arrange(geneset) %>%
+    mutate(PValue=ifelse(FDR <= fdr, PValue, 1)) %>%
+    mutate(FDR_sign=as.numeric(plyr::mapvalues(Direction, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+    mutate(pval_log10=-log10(PValue)*FDR_sign) %>%
+    filter(geneset %in% sigs$full_title) ->
+    tmp
+  return(tmp)
+}
+
+sig_df <- data.frame(vaccine_all=format_gs(cam_vac)$pval_log10,
+                     vaccine_case=format_gs(cam_vac_dis)$pval_log10,
+                     vaccine_control=format_gs(cam_vac_nodis)$pval_log10,
+                     disease_rtss=format_gs(cam_dis)$pval_log10,
+                     disease_comp=format_gs(cam_dis_comp)$pval_log10)
+sig_df$anno <- all_sigs$annotation
+sig_df$geneset <- all_sigs$full_title
+
+sig_df %>%
+  filter(anno != "TBA") %>%
+  arrange(anno, vaccine_all) %>%
+  column_to_rownames("geneset") ->
+  heat_mat
+
+## colors for annotation
+annos <- unique(heat_mat$anno)
+anno_col <- rainbow(length(annos))
+anno_cols <- anno_col[as.factor(heat_mat$anno)]
+
+heat_mat$anno <- NULL
+
+## only plot if there are significant results
+  ##if(DO_PDF) {pdf(file=here("output/figures/manuscript/AMA1_heat_all_dis.pdf"))}
+  
+  heatmap3(heat_mat, Rowv=NA, Colv=NA, scale="none", balanceColor=TRUE, 
+           cexRow=0.75, cexCol=1.25, showRowDendro=FALSE, margins=c(2,20),
+           col=colorRampPalette(c("navy", "white", "firebrick3"))(1024),
+           RowSideColors=anno_cols, RowSideLabs="", na.rm=FALSE)
+   legend(x="bottomleft", inset=-0.1, legend=annos, fill=anno_col, bty="n", cex=0.7)
+ 
+##if(DO_PDF) {dev.off()}
+ 
+
+```
+
+###heatmap of vaccine and disease (with down selection)
+  
+```{r test2} 
+
+## get list of down-selected genesets from vaccine comparison (both groups)
+all_sigs <- unique(cam_vac$geneset[cam_vac$FDR <= fdr_cut])
+
+## don't make plots if there are no significant gene-sets
+CONTINUE <- !is_empty(all_sigs)
+```
+
+```{r heat2, eval=CONTINUE}
+
+## join genesets with their annotations
+all_sigs <- dplyr::left_join(data.frame(full_title=all_sigs), 
+                      btm_anno[,c("annotation", "full_title")],
+                      by="full_title")
+
+## extract -log10 signed pvalues for all genesets in all_sigs
+format_gs <- function(mat, sigs=all_sigs, fdr=fdr_cut) {
+  
+  mat %>%
+    arrange(geneset) %>%
+    mutate(PValue=ifelse(FDR <= fdr, PValue, 1)) %>%
+    mutate(FDR_sign=as.numeric(plyr::mapvalues(Direction, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+    mutate(pval_log10=-log10(PValue)*FDR_sign) %>%
+    filter(geneset %in% sigs$full_title) ->
+    tmp
+  return(tmp)
+}
+
+sig_df <- data.frame(vaccine_all=format_gs(cam_vac)$pval_log10,
+                     disease_rtss=format_gs(cam_dis)$pval_log10,
+                     disease_comp=format_gs(cam_dis_comp)$pval_log10)
+sig_df$anno <- all_sigs$annotation
+sig_df$geneset <- all_sigs$full_title
+
+sig_df %>%
+  filter(anno != "TBA") %>%
+  arrange(anno, vaccine_all) %>%
+  column_to_rownames("geneset") ->
+  heat_mat
+
+## colors for annotation
+annos <- unique(heat_mat$anno)
+anno_col <- rainbow(length(annos))
+anno_cols <- anno_col[as.factor(heat_mat$anno)]
+
+heat_mat$anno <- NULL
+
+  ##if(DO_PDF) {pdf(file=here("output/figures/manuscript/AMA1_heat_all_dis.pdf"))}
+  
+  heatmap3(heat_mat, Rowv=NA, Colv=NA, scale="none", balanceColor=TRUE, 
+           cexRow=0.75, cexCol=1.25, showRowDendro=FALSE, margins=c(2,20),
+           col=colorRampPalette(c("navy", "white", "firebrick3"))(1024),
+           RowSideColors=anno_cols, RowSideLabs="", na.rm=FALSE)
+   legend(x="bottomleft", inset=-0.1, legend=annos, fill=anno_col, bty="n", cex=0.7)
+   
+  ##if(DO_PDF) {dev.off()}
+
+
+```
+
+
+
+
+
+
