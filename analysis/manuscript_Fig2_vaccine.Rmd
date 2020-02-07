@@ -248,7 +248,13 @@ cam_visit_rtss %>%
 
 write_csv(cam_visit_rtss, paste0(here("output/"), "M3-M0_rtss.csv"))
 
-write_csv(cam_visit_rtss[cam_visit_rtss$FDR <= 0.2,], paste0(here("output/"), "Fig2B_M3-M0_rtss.csv"))
+## write significant gene sets
+cam_visit_rtss %>%
+  dplyr::filter(FDR <= fdr_cut) %>%
+  left_join(btm_anno[,c("annotation", "full_title")], by=c("geneset"="full_title")) ->
+  outie
+
+write_csv(outie, paste0(here("output/"), "Fig2B_M3-M0_rtss.csv"))
 
 ```
 
@@ -305,7 +311,7 @@ cam_visit_all$PValue_comp[cam_visit_all$FDR_comp >= fdr_cut] <- 1
 cam_vac$PValue[cam_vac$FDR >= fdr_cut] <- 1
 
 cam_visit_all %>%
-  select(-c(NGenes)) %>%
+  dplyr::select(-c(NGenes)) %>%
   dplyr::left_join(cam_vac, by="geneset") ->
 cam_total
 
@@ -450,6 +456,11 @@ if(DO_PDF) {dev.off()}
            Dir_name == "M3 Up" | Dir_name == "M3 Down") ->
    bub1
  
+ bub1$annotation <- factor(bub1$annotation, levels=rev(sort(unique(bub1$annotation))), ordered=TRUE)
+ 
+ bub1 %<>%
+   dplyr::arrange(annotation)
+ 
  if(DO_PDF) {pdf(file=here("output/figures/manuscript/Fig2_bubble.pdf"))}
  ggplot(bub1, aes(x=Dir_name, y=factor(annotation, levels=rev(sort(unique(annotation)))), size=Freq,
                      color=Direction)) +
@@ -461,7 +472,6 @@ if(DO_PDF) {dev.off()}
  if(DO_PDF) {dev.off()}
  
 ```
-
 
 
 

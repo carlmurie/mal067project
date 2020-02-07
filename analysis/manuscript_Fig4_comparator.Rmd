@@ -132,6 +132,7 @@ cam_m0 %>%
 
 cam_m0 %>%
   filter(FDR <= fdr_cut) %>%
+  dplyr::left_join(btm_anno[,c("annotation", "full_title")],by=c("geneset"="full_title")) %>%
   write_csv(path=here::here("output/manuscript/Fig4_M0_RTSS_case_GSEA.csv"))
 
 ```
