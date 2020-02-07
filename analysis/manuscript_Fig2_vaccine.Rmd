@@ -1,0 +1,467 @@
+---
+title: 'Manuscript: M3 DMSO'
+author: "Carl Murie"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: html_document
+---
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r packages}
+library(readr)
+library(RNASeqUtilities)
+library(Biobase)
+library(magrittr)
+library(here)
+library(heatmap3)
+library(DT)
+library(GSEABase)
+library(limma)
+library(tidyverse)
+library(data.table)
+library(RColorBrewer)
+library(heatmap3)
+
+source(here("code", "mal_utilities.R"))
+```
+
+```{r load}
+## load mal067 data
+library(mal067data)
+meta_dt <- as_tibble(pData(mal067_eset))
+
+DO_PDF <- FALSE
+
+stim="dmso"
+time="M3"
+```
+
+```{r genesets}
+## set up GSEA analysis
+min_gene_set <- 5
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+
+## read in BTM module annotations
+btm_anno <- read_csv(here("data/btm_annotation_table_LNC.csv"))
+btm_anno$full_title <- paste0(btm_anno$`Module title`, " (", btm_anno$ID, ")")
+
+```
+
+```{r set-parameters}
+
+## parameters set by parent: stim, time
+
+fdr_cut <- 0.2
+p_cut <- 0.01
+form_main_vac_both <- "~plate + total_reads + age + vaccine"
+coeff <- "vaccinertss"
+```
+
+ 
+# GSEA `r toupper(stim)`: vaccine main effects 
+  
+**vaccine linear model:** `r form_main_vac_both`   
+**coefficient:** `r coeff`  
+**vaccine filtering   :**  `r time`  
+  
+```{r vaccine_data}
+################### vaccine and disease  analysis ########################
+
+## vaccine: select subset of expressionSet
+meta_dt %>% 
+  filter(stimulation == stim) %>% 
+  filter(visit == time) %$%
+  col_id ->
+  sample_vac
+
+
+## generate subset data and drop extra stimulation levels
+mal_vac <- mal067_eset[, sample_vac] 
+mal_vac$stimulation <- fct_drop(mal_vac$stimulation)
+```
+
+
+```{r sample_size}
+
+## get sample sizes
+countSampleSizes(pData(mal_vac), "stimulation", 
+                 c("vaccine", "case", "age")) %>%
+headerKable(labels=c("vaccine", "case", "age"), levels=c(2,3,2), 
+            title="vaccine sample size")
+
+```
+  
+##vaccine M3 (RTS,S - comparator)
+
+```{r vac_analysis}
+################## vaccine analysis ########################
+
+cam_vac <- runGSEA(mal_vac, 
+                   form_main_vac_both,
+                   coef="vaccinertss")
+numSig <- sum(cam_vac$FDR <= fdr_cut)
+
+suffix <- paste(stim, time, sep="_")
+write_csv(cam_vac, paste0(here("output/"), "vaccine_both_", suffix, ".csv"))
+
+write_csv(cam_vac[cam_vac$FDR <= fdr_cut,], paste0(here("output/"), "Fig2A_vaccine_both_", suffix, ".csv"))
+
+
+## append annotation to signficant gene-sets
+cam_vac %>%
+  filter(cam_vac$FDR <= fdr_cut) %>%
+  left_join(btm_anno[,c("annotation", "full_title")], by=c("geneset"="full_title")) ->
+  vac_sig
+
+vac_sig %>%
+  filter(!is.na(annotation)) %>%
+  filter(!str_detect(annotation, "TBA")) %>%
+  mutate(sign_vac=as.numeric(plyr::mapvalues(Direction, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(log10_Pval_vac=sign_vac*-log10(PValue))  ->
+  outie_vac
+
+write_csv(outie_vac, paste0(here("output/"), "M3_dmso_vaccine.csv"))
+```
+
+
+```{r heatme_vac}
+
+## set all non-significant genesets PValues to 1
+##outie_vac$PValue[outie_vac$FDR >= fdr_cut] <- 1
+
+
+outie_vac %>%
+  dplyr::arrange(annotation, log10_Pval_vac) %>%
+  dplyr::select(c(geneset, annotation, log10_Pval_vac)) %>%
+  column_to_rownames("geneset") %>%
+  plyr::rename(c(log10_Pval_vac="vaccine")) %>%
+  as.data.frame() ->
+  heat_mat
+heat_vac <- heat_mat
+
+heat_mod <- cbind(heat_mat, heat_mat$vaccine)[,-1]
+heat_mod$annotation <- NULL
+heat_mod <- cbind(heat_mat, heat_mat[,2])[,-1]
+
+## colors for annotation
+annos <- unique(heat_mat$annotation)
+anno_col <- rainbow(length(annos))
+anno_cols <- anno_col[as.factor(heat_mat$annotation)]
+
+if(DO_PDF) {pdf(file=here("output/figures/manuscript/heat_dmso_M3.pdf"))}
+
+heatmap3(heat_mod, Rowv=NA, Colv=NA, scale="none", balanceColor=TRUE, 
+         cexRow=0.50, cexCol=1.25, showRowDendro=FALSE, margins=c(1,9),
+         col=colorRampPalette(c("navy", "white", "firebrick3"))(1024),
+         RowSideColors=anno_cols, labCol=FALSE, RowSideLabs="")
+ legend(x="bottomleft", inset=-0.11, legend=annos, fill=anno_col, bty="n", cex=0.7)
+ 
+if(DO_PDF) {dev.off()}
+ 
+```
+
+
+##vaccine M3-MO  {.tabset .tabset-fade .tabset-pills}
+  
+Only Bagamoya samples with the dmso stimulation are used. A consequence of this is that only subjects from the old age group are included.  Additionally only paired samples by subject are included.
+  
+```{r m3-m0}
+
+form_visit_main <- "~plate + total_reads + pid + visit"
+coeff <- "visitM3"
+
+mal067_voom$targets %>%
+  filter(site=="BAGAMOYO") %>%
+  filter(stimulation=="dmso") %>%
+  mutate(stimulation=droplevels(stimulation)) %$%
+  col_id ->
+  bag_ind
+
+v_bag <- mal067_voom[,bag_ind]
+v_bag$targets$stimulation <- fct_drop(v_bag$targets$stimulation)
+v_bag$targets$visit <- fct_relevel(v_bag$targets$visit, "M0")
+
+
+## get paired intersection between time points
+pids <- intersect(v_bag$targets$pid[v_bag$targets$visit=="M0"],
+                  v_bag$targets$pid[v_bag$targets$visit=="M3"])
+v_bag$targets %>%
+  filter(pid %in% pids) %$%
+  col_id ->
+  pid_ids
+  
+v_bag <- v_bag[,pid_ids]
+
+v_bag$targets %>%
+  countSampleSizes("stimulation", c("vaccine", "malaria_status",  "age", "visit", "case")) %>%
+  headerKable(labels=c("vaccine", "disease", "age", "visit", "case"),
+              levels=c(2,2,2,2,3))
+```
+
+formula: `r form_visit_main`  
+coefficient: `r coeff`  
+  
+###rts,s and comparator together  
+  
+```{r visit_both}
+## interaction
+des <- model.matrix(formula(form_visit_main), v_bag$targets)
+
+## run camera
+cam_visit_both <- as_tibble(camera(v_bag$E, btm_ind, design=des,
+                              contrast=coeff),
+                       rownames="geneset")
+v_both_sigs <- sum(cam_visit_both$FDR <= fdr_cut)
+
+cam_visit_both %>%
+  filter(FDR <= fdr_cut) %>%
+  headerKable()
+
+write_csv(cam_visit_both, paste0(here("output/"), "M3-M0_both.csv"))
+
+```
+
+###rts,s  
+  
+```{r visit_rtss}
+## select only rts,s subjects
+indy <- v_bag$targets$vaccine=="rtss"
+
+des <- model.matrix(formula(form_visit_main), v_bag$targets[indy,])
+
+## run camera
+cam_visit_rtss <- as_tibble(camera(v_bag$E[,indy], btm_ind, design=des,
+                              contrast=coeff),
+                       rownames="geneset")
+v_rtss_sigs <- sum(cam_visit_rtss$FDR <= fdr_cut)
+
+cam_visit_rtss %>%
+  filter(FDR <= fdr_cut) %>%
+  headerKable()
+
+write_csv(cam_visit_rtss, paste0(here("output/"), "M3-M0_rtss.csv"))
+
+write_csv(cam_visit_rtss[cam_visit_rtss$FDR <= 0.2,], paste0(here("output/"), "Fig2B_M3-M0_rtss.csv"))
+
+```
+
+
+###comparator  
+  
+```{r visit_comparator}
+## select only rts,s subjects
+indy <- v_bag$targets$vaccine=="comparator"
+
+des <- model.matrix(formula(form_visit_main), v_bag$targets[indy,])
+
+## run camera
+cam_visit_comp <- as_tibble(camera(v_bag$E[,indy], btm_ind, design=des,
+                              contrast=coeff),
+                       rownames="geneset")
+v_comp_sigs <- sum(cam_visit_comp$FDR <= fdr_cut)
+
+cam_visit_comp %>%
+  filter(FDR <= fdr_cut) %>%
+  headerKable()
+
+write_csv(cam_visit_comp, paste0(here("output/"), "M3-M0_comp.csv"))
+```
+
+```{r write}
+
+cam_visit_both %>% 
+  dplyr::left_join(cam_visit_rtss[,-2], by="geneset") %>%
+  dplyr::left_join(cam_visit_comp[,-2], by="geneset") %>%
+  dplyr::left_join(btm_anno[,c("annotation", "full_title")],
+                   by=c("geneset"="full_title"))  ->
+  cam_visit_all
+
+col_names <- c("geneset", "NGenes",
+               paste0(colnames(cam_visit_both)[3:5], "_both"),
+               paste0(colnames(cam_visit_both)[3:5], "_rtss"),
+               paste0(colnames(cam_visit_both)[3:5], "_comp"),
+               "annotation")
+colnames(cam_visit_all) <- col_names
+write_csv(cam_visit_all, paste0(here("output/"),
+                                 "M3-M0_by_vaccine.csv"))
+
+```
+
+##Heatmap  
+  
+```{r heatme_M3-M0}
+
+## set all non-significant genesets PValues to 1
+cam_visit_all$PValue_both[cam_visit_all$FDR_both >= fdr_cut] <- 1
+cam_visit_all$PValue_rtss[cam_visit_all$FDR_rtss >= fdr_cut] <- 1
+cam_visit_all$PValue_comp[cam_visit_all$FDR_comp >= fdr_cut] <- 1
+cam_vac$PValue[cam_vac$FDR >= fdr_cut] <- 1
+
+cam_visit_all %>%
+  select(-c(NGenes)) %>%
+  dplyr::left_join(cam_vac, by="geneset") ->
+cam_total
+
+cam_total %>%
+  filter(!is.na(annotation)) %>%
+  filter(!str_detect(annotation, "TBA")) %>%
+  mutate(sign_vac_both=as.numeric(plyr::mapvalues(Direction_both, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(log10_Pval_both=sign_vac_both*-log10(PValue_both)) %>%
+  mutate(sign_vac_rtss=as.numeric(plyr::mapvalues(Direction_rtss, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(log10_Pval_rtss=sign_vac_rtss*-log10(PValue_rtss)) %>%
+  mutate(sign_vac_comp=as.numeric(plyr::mapvalues(Direction_comp, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(log10_Pval_comp=sign_vac_comp*-log10(PValue_comp)) %>%
+  mutate(sign_m3=as.numeric(plyr::mapvalues(Direction, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(log10_Pval_m3=sign_m3*-log10(PValue)) ->
+  outie
+
+
+outie %>%
+   filter(FDR_both <= fdr_cut | 
+           FDR_rtss <= fdr_cut | 
+           FDR_comp <= fdr_cut) %>%
+  dplyr::arrange(annotation, log10_Pval_both) %>%
+  dplyr::select(c(geneset, annotation, log10_Pval_both,
+                  log10_Pval_rtss, log10_Pval_comp)) %>%
+  column_to_rownames("geneset") %>%
+  plyr::rename(c(log10_Pval_both="both")) %>%
+  plyr::rename(c(log10_Pval_rtss="rtss")) %>%
+  plyr::rename(c(log10_Pval_comp="comp")) %>%
+  as.data.frame() ->
+  heat_mat
+
+## colors for annotation
+annos <- unique(heat_mat$annotation)
+anno_col <- rainbow(length(annos))
+anno_cols <- anno_col[as.factor(heat_mat$annotation)]
+
+heat_mat$annotation <- NULL
+
+if(DO_PDF) {pdf(file=here("output/figures/manuscript/heat_M3-M0.pdf"))}
+
+heatmap3(heat_mat, Rowv=NA, Colv=NA, scale="none", balanceColor=TRUE, 
+         cexRow=0.40, cexCol=1.25, showRowDendro=FALSE, margins=c(2,20),
+         col=colorRampPalette(c("navy", "white", "firebrick3"))(1024),
+         RowSideColors=anno_cols, RowSideLabs="", na.rm=FALSE)
+ legend(x="bottomleft", inset=-0.1, legend=annos, fill=anno_col, bty="n", cex=0.7)
+ 
+if(DO_PDF) {dev.off()}
+ 
+ 
+ ## heatmap of selected annotation group
+ outie %>%
+   filter(annotation == "Monocytes" |
+            annotation == "B Cells" |
+            annotation == "T Cells" |
+            annotation == "Dendritic Cells" |
+            annotation == "Inflammatory/TLR/Chemokines" |
+            annotation == "Mitochondria" |
+            annotation == "Antiviral/IFN" |
+            annotation == "NK Cells") %>%
+   filter(FDR <= fdr_cut | FDR_rtss <= fdr_cut) %>%
+   arrange(annotation, log10_Pval_m3) %>%
+    dplyr::select(c(geneset, annotation, log10_Pval_m3,
+                  log10_Pval_rtss)) %>%
+  column_to_rownames("geneset") %>%
+  plyr::rename(c(log10_Pval_m3="M3")) %>%
+  plyr::rename(c(log10_Pval_rtss="rtss")) %>%
+  as.data.frame() ->
+  sel_mat
+   
+ ## colors for annotation
+annos <- unique(sel_mat$annotation)
+anno_col <- rainbow(length(annos))
+anno_cols <- anno_col[as.factor(sel_mat$annotation)]
+
+sel_mat$annotation <- NULL
+
+if(DO_PDF) {pdf(file=here("output/figures/manuscript/Fig2_heat_select.pdf"))}
+
+heatmap3(sel_mat, Rowv=NA, Colv=NA, scale="none", balanceColor=TRUE, 
+         cexRow=1, cexCol=1.25, showRowDendro=FALSE, margins=c(2,20),
+         col=colorRampPalette(c("navy", "white", "firebrick3"))(1024),
+         RowSideColors=anno_cols, RowSideLabs="", na.rm=FALSE)
+ legend(x="bottomleft", inset=-0.1, legend=annos, fill=anno_col, bty="n", cex=1)
+ 
+if(DO_PDF) {dev.off()}
+ 
+```
+  
+##Bubble map  
+  
+```{r bubble}
+
+## remove TBAs
+ cam_visit_all %>%
+   filter(!str_detect(annotation, "TBA")) ->
+   cam_M
+
+ ## reformat for bubble graph
+ as.data.frame(unlist(t(table(cam_M[cam_M$FDR_both <= fdr_cut,
+                                    c("Direction_both", 
+                                      "annotation")])))) %>%
+   dplyr::rename(Direction=Direction_both) %>%
+   mutate(Dir_name=paste("both", Direction)) ->
+   bub_both
+   
+ as.data.frame(unlist(t(table(cam_M[cam_M$FDR_rtss <= fdr_cut,
+                                    c("Direction_rtss",
+                                      "annotation")])))) %>%
+   dplyr::rename(Direction=Direction_rtss) %>%
+   mutate(Dir_name=paste("rtss", Direction)) ->
+   bub_rtss
+ 
+ as.data.frame(unlist(t(table(cam_M[cam_M$FDR_comp <= fdr_cut,
+                                    c("Direction_comp",
+                                      "annotation")])))) %>%
+   dplyr::rename(Direction=Direction_comp) %>%
+   mutate(Dir_name=paste("comp", Direction)) ->
+   bub_comp
+ 
+ as.data.frame(unlist(t(table(outie_vac[,c("Direction", "annotation")])))) %>%
+   mutate(Dir_name=paste("M3", Direction)) ->
+   bub_vac
+ 
+ bub_all <- rbind(bub_vac, bub_both, bub_rtss, bub_comp)
+ bub_all$Freq[bub_all$Freq == 0] <- NA
+ bub_all$annotation <- factor(bub_all$annotation, levels=sort(unique(bub_all$annotation)))
+ 
+ bub_all$Dir_name <- factor(bub_all$Dir_name, levels=c("M3 Up", "M3 Down", "both Up", "both Down", "rtss Up", "rtss Down", "comp Up", "comp Down"))
+ bub_all$Direction <- relevel(bub_all$Direction, "Up")
+ 
+ ## remove comp columns
+ bub_all %>%
+   filter(Dir_name == "rtss Up" | Dir_name == "rtss Down" |
+           Dir_name == "M3 Up" | Dir_name == "M3 Down") ->
+   bub1
+ 
+ if(DO_PDF) {pdf(file=here("output/figures/manuscript/Fig2_bubble.pdf"))}
+ ggplot(bub1, aes(x=Dir_name, y=factor(annotation, levels=rev(sort(unique(annotation)))), size=Freq,
+                     color=Direction)) +
+   geom_point() + xlab("") + ylab("annotation") +
+   ggtitle("vaccine effect") +
+   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+   scale_color_manual(values=c("firebrick3", "navy")) 
+
+ if(DO_PDF) {dev.off()}
+ 
+```
+
+
+
+

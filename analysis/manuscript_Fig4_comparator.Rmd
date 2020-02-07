@@ -1,0 +1,282 @@
+---
+title: "Baseline: disease comparator"
+author: "Carl Murie and Raphael Gottardo"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: html_document
+---
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r load-packages}
+library(RNASeqUtilities)
+library(Biobase)
+library(GSEABase)
+library(DT)
+library(limma)
+library(tidyverse)
+library(magrittr)
+library(here)
+library(heatmap3)
+
+source(here("code", "mal_utilities.R"))
+```
+
+
+```{r load-data}
+library(mal067data)
+data(mal067_eset)
+meta_dt <- as.tibble(pData(mal067_eset))
+```
+
+
+```{r gsea_setup}
+## set up GSEA analysis
+min_gene_set <- 5
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+
+## read in BTM module annotations
+btm_anno <- read_csv(here("data/btm_annotation_table_LNC.csv"))
+btm_anno$full_title <- paste0(btm_anno$`Module title`, " (", btm_anno$ID, ")")
+```
+
+
+```{r set-parameters}
+
+## parameters set by parent: stim, time
+DO_PDF <- FALSE
+fdr_cut <- 0.2
+p_cut <- 0.01
+min_gene_set <- 5
+##coef <- "malaria_status1"
+##form_dis <- "~plate + total_reads + age_weeks + malaria_status"
+coef <- "casecase"
+form_dis <- "~plate + total_reads + age_weeks + case"
+
+
+## select subset of results from 'topTable' results
+colInd <- c("logFC", "P.Value", "adj.P.Val")
+
+## store number of significant gene-sets for each comparison
+summary_tab <- NULL
+
+```
+
+
+#Test disease effect for both visits: comparator
+
+Compare samples from subjects who contracted malaria vs those subjects who didnt' for M0 and M3.
+
+**disease linear model:** `r form_dis`  
+**disease linear model coefficient** `coef`
+**disease filtering   :** rtss, both age groups, dmso  
+
+```{r disease_data}
+## disease: select subset of expressionSet
+meta_dt %>% 
+  filter(stimulation == "dmso") %>% 
+  filter(case=="control" | case=="case") %>%
+  filter(vaccine == "rtss") %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation/case levels
+mal_dis <- mal067_eset[, sample_vac] 
+mal_dis$stimulation <- fct_drop(mal_dis$stimulation)
+mal_dis$case <- fct_drop(mal_dis$case)
+
+## use pre-voomed data
+mal_dis <- mal067_voom[, sample_vac]
+mal_dis$targets$stimulation <- fct_drop(mal_dis$targets$stimulation)
+mal_dis$targets$case <- fct_drop(mal_dis$targets$case)
+```
+
+##Sample sizes  
+  
+```{r sample_size}
+## get sample sizes
+countSampleSizes(mal_dis$targets, "visit", 
+                 c("vaccine", "malaria_status", "age", "case")) %>%
+headerKable(labels=c("vaccine", "malaria_status", "age", "case"), levels=c(2,2,2,2), 
+            title="disease sample size")
+```
+
+##M0  
+
+###GSEA {.tabset .tabset-fade .tabset-pills}   
+  
+```{r m0}
+
+mal_dis$targets %>%
+  filter(visit=="M0") %$%
+  col_id ->
+  m0_ind
+
+mal_m0 <- mal_dis[,m0_ind]
+des_m0 <- model.matrix(formula(form_dis), mal_m0$targets)
+ 
+ mal_voom <- mal_m0$E
+
+cam_m0 <- as.tibble(camera(mal_voom, btm_ind, design=des_m0, contrast=coef),
+                       rownames="geneset")
+num_m0 <- sum(cam_m0$FDR <= fdr_cut)
+
+cam_m0 %>%
+  filter(FDR <= fdr_cut) %>%
+  datatable() %>%
+  formatRound(columns=c('PValue', 'FDR'), digits=3)
+
+cam_m0 %>%
+  filter(FDR <= fdr_cut) %>%
+  write_csv(path=here::here("output/manuscript/Fig4_M0_RTSS_case_GSEA.csv"))
+
+```
+  
+####Heat map  
+  
+```{r heat_m0}
+  
+cam_m0 %>%
+  dplyr::select(-c(NGenes)) %>%
+  filter(FDR <= fdr_cut) %>% 
+  dplyr::left_join(btm_anno[,c("annotation", "full_title")],by=c("geneset"="full_title")) %>%
+  filter(!str_detect(annotation, "TBA")) %>%
+  mutate(Direction=as.numeric(plyr::mapvalues(Direction, 
+                                              from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(log10_Pval=Direction*-log10(PValue)) ->
+  outie
+
+outie %>%
+  dplyr::arrange(annotation, log10_Pval) %>%
+  dplyr::select(c(geneset, annotation, log10_Pval)) %>%
+  column_to_rownames("geneset") %>%
+  dplyr::rename(disease=log10_Pval) %>%
+  as.data.frame() ->
+  heat_mat
+
+## colors for annotation
+annos <- unique(heat_mat$annotation)
+anno_col <- rainbow(length(annos))
+anno_cols <- anno_col[as.factor(heat_mat$annotation)]
+heat_mat$annotation <- NULL
+colnames(heat_mat) <- NULL
+heat_mat <- cbind(heat_mat, heat_mat[,1])
+
+if(DO_PDF) {pdf(file=here("output/figures/manuscript/M0_rtss_disease_heatmap_case_control.pdf"))}
+
+heatmap3(heat_mat, Rowv=NA, Colv=NA, scale="none", balanceColor=TRUE, 
+         cexRow=0.60, cexCol=1.25, showRowDendro=FALSE, margins=c(7,15),
+         col=colorRampPalette(c("navy", "white", "firebrick3"))(1024),
+         RowSideColors=anno_cols, RowSideLabs="", labCol="")
+ legend(x="bottomleft", inset=-0.07, legend=annos, fill=anno_col, bty="n", cex=0.7)
+ 
+if(DO_PDF) {dev.off()}
+
+```
+
+
+####Bubble plot
+  
+```{r bubble_m0}
+
+## remove TBAs
+ cam_m0 %>%
+   dplyr::left_join(btm_anno[,c("annotation", "full_title")],by=c("geneset"="full_title")) %>%
+   filter(!str_detect(annotation, "TBA"))  ->
+  cam_M
+
+ ## reformat for bubble graph
+ as.data.frame(unlist(t(table(cam_M[cam_M$FDR <= fdr_cut,
+                                    c("Direction", 
+                                      "annotation")])))) ->
+   bub
+ 
+ bub$Freq[bub$Freq == 0] <- NA
+ bub$annotation <- factor(bub$annotation, levels=sort(unique(bub$annotation)))
+ bub$Direction <- relevel(bub$Direction, "Up")
+ 
+  if(DO_PDF) {pdf(file=here("output/figures/manuscript/M0_rtss_disease_bubblecase_control.pdf"))}
+ ggplot(bub, aes(x=Direction, y=factor(annotation, levels=rev(sort(unique(annotation)))),
+                 size=Freq, color=Direction)) +
+   geom_point() + xlab("") + ylab("annotation") +
+   ggtitle("disease effect") +
+   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+   scale_color_manual(values=c("firebrick3", "navy")) 
+
+ if(DO_PDF) {dev.off()}
+ 
+
+```
+
+###DGE  
+  
+```{r m0_dge}
+
+ fit1 <- lmFit(mal_voom, des_m0)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ tmp <- topTable(fit2, number=Inf, coef=coef, sort="P")
+ sig <- signif(tmp[tmp$adj.P.Val <= fdr_cut, colInd], 3)
+ colnames(sig) <- c("log FC",  "P.value", "FDR")
+ summ <- nrow(sig)
+
+if(summ >0) {
+   datatable(sig)
+ } else {
+   cat("No significant gene sets found\n")
+ }
+
+```
+
+##M3  
+  
+```{r m3, eval=FALSE}
+
+pData(mal_dis) %>%
+filter(visit=="M3") %$%
+  col_id ->
+  m3_ind
+
+mal_m3 <- mal_dis[,m3_ind]
+des_m3 <- model.matrix(formula(form_dis), mal_m3)
+
+## voom the data with the linear model
+mal_voom <- voom(mal_m3, design=des_m3)
+ 
+cam_m3 <- as.tibble(camera(mal_voom, btm_ind, design=des_m3, contrast=coef),
+                       rownames="geneset")
+num_m3 <- sum(cam_m0$FDR <= fdr_cut)
+
+cam_m3 %>%
+  filter(FDR <= fdr_cut) %>%
+  datatable() %>%
+  formatRound(columns=c('PValue', 'FDR'), digits=3)
+
+```
+
+###DGE  
+  
+```{r m3_dge, eval=FALSE}
+
+ fit1 <- lmFit(mal_m3, des_m3)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ tmp <- topTable(fit2, number=Inf, coef=coef, sort="P")
+ sig <- signif(tmp[tmp$adj.P.Val <= fdr_cut, colInd], 3)
+ colnames(sig) <- c("log FC",  "P.value", "FDR")
+ summ <- nrow(sig)
+
+ if(summ >0) {
+   datatable(sig)
+ } else {
+   cat("No significant gene sets found\n")
+ }
+
+```
+
+  
+  
+  

@@ -1,0 +1,707 @@
+---
+title: 'Manuscript: M3 DMSO'
+author: "Carl Murie"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: html_document
+---
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r packages}
+library(readr)
+library(RNASeqUtilities)
+library(Biobase)
+library(magrittr)
+library(here)
+library(heatmap3)
+library(DT)
+library(GSEABase)
+library(limma)
+library(data.table)
+library(RColorBrewer)
+library(heatmap3)
+library(tidyverse)
+
+source(here("code", "mal_utilities.R"))
+```
+
+```{r load}
+## load mal067 data
+library(mal067data)
+meta_dt <- as_tibble(pData(mal067_eset))
+
+DO_PDF <- FALSE
+
+stim="dmso"
+time="M3"
+```
+
+```{r genesets}
+## set up GSEA analysis
+min_gene_set <- 5
+btm_gtm <- getGmt(here("data/BTM_for_GSEA_20131008.gmt"))
+btm_ind <- ids2indices(geneIds(btm_gtm), rownames(mal067_eset))
+btm_ind <- btm_ind[sapply(btm_ind, length) > min_gene_set]
+
+## read in BTM module annotations
+btm_anno <- read_csv(here("data/btm_annotation_table_LNC.csv"))
+btm_anno$full_title <- paste0(btm_anno$`Module title`, " (", btm_anno$ID, ")")
+
+```
+
+```{r set-parameters}
+
+## parameters set by parent: stim, time
+
+fdr_cut <- 0.2
+p_cut <- 0.01
+form_main_dis_case <- "~plate + total_reads + age + case"
+coeff_case <- "casecase"
+##form_main_dis_malaria <- "~plate + total_reads + age + malaria_status"
+##coeff_malaria <- "malaria_status1"
+##coeff <- "casecase"
+```
+
+ 
+# GSEA `r toupper(stim)`: disease main effects {.tabset .tabset-fade .tabset-pills}
+
+**disease linear model:** `r form_main_dis_case`  
+**disease filtering   :** `r time`
+
+```{r disease_data}
+
+## disease: select subset of expressionSet
+meta_dt %>% 
+  filter(stimulation == stim) %>% 
+  filter(case == "case" | case == "control") %>%
+  filter(visit == time) %$%
+  col_id ->
+  sample_vac
+
+## generate subset data and drop extra stimulation/case levels
+mal_dis <- mal067_eset[, sample_vac] 
+mal_dis$stimulation <- fct_drop(mal_dis$stimulation)
+mal_dis$case <- fct_drop(mal_dis$case)
+```
+
+
+```{r sample_size}
+
+## get sample sizes
+countSampleSizes(pData(mal_dis), "stimulation", 
+            c("vaccine", "malaria_status", "age", "visit", "case")) %>%
+headerKable(labels=c("vaccine", "malaria", "age", "visit", "case"),
+            levels=c(2,2,2,2,2), title="disease sample size")
+
+```
+  
+##disease M3 (malaria - no malaria): RTS,S only
+
+```{r dis_analysis_rtss}
+################## vaccine analysis ########################
+
+cam_dis_rtss <- runGSEA(mal_dis[,mal_dis$vaccine=="rtss"], 
+                   form_main_dis_case,
+                   coef=coeff_case)
+numSig <- sum(cam_dis_rtss$FDR <= fdr_cut)
+
+suffix <- paste(stim, time, sep="_")
+write_csv(cam_dis_rtss, paste0(here("output/"), "disease_rtss_", suffix, ".csv"))
+
+```
+  
+##disease M3 (malaria - no malaria): comparator only  
+  
+```{r dis_analysis_comp}
+################## vaccine analysis ########################
+
+cam_dis_comp <- runGSEA(mal_dis[,mal_dis$vaccine=="comparator"], 
+                   form_main_dis_case,
+                   coef=coeff_case)
+numSig <- sum(cam_dis_comp$FDR <= fdr_cut)
+
+suffix <- paste(stim, time, sep="_")
+write_csv(cam_dis_comp, paste0(here("output/"), "disease_comp_", suffix, ".csv"))
+
+```
+  
+  
+```{r deg_mal}
+ colInd <- c("logFC", "P.Value", "adj.P.Val")
+
+ mal_rtss <- mal_dis[, mal_dis$vaccine=="rtss"]
+ design_dis <- model.matrix(formula(form_main_dis_case), mal_rtss)
+ mal_voom <- voom(mal_rtss, design=design_dis)
+
+ fit1 <- lmFit(mal_voom, design_dis)
+ fit2 <- eBayes(fit1, trend=FALSE)
+ tmp_deg <- topTable(fit2, number=Inf, coef="casecase", sort="P")
+ vc_deg <- tmp_deg
+ vc_deg$genenames <- rownames(vc_deg)
+
+
+```
+  
+  
+#Plots: M3 DMSO  
+  
+```{r heatme_vac}
+
+## reformat and process
+cam_dis_rtss %>%
+  dplyr::select(-c(NGenes)) %>%
+  dplyr::left_join(cam_dis_comp, by="geneset") %>%
+  dplyr::select(-c(NGenes)) %>%
+  dplyr::left_join(btm_anno, by=c("geneset"="full_title")) %>% 
+  filter(!is.na(annotation) & !str_detect(annotation,"TBA")) %>%
+  dplyr::rename(PValue_rtss=PValue.x,
+                Direction_rtss=Direction.x,
+                FDR_rtss=FDR.x,
+                PValue_comp=PValue.y,
+                Direction_comp=Direction.y,
+                FDR_comp=FDR.y) %>%
+  mutate(Direction_rtss=as.numeric(plyr::mapvalues(Direction_rtss, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(Direction_comp=as.numeric(plyr::mapvalues(Direction_comp, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(log10_Pval_rtss=Direction_rtss*-log10(PValue_rtss)) %>%
+  mutate(log10_Pval_comp=Direction_comp*-log10(PValue_comp)) ->
+  outie_m3
+
+## select only significant gene sets
+allsigs <- unique(c(cam_dis_rtss$geneset[cam_dis_rtss$FDR <= fdr_cut],
+                    cam_dis_comp$geneset[cam_dis_comp$FDR <= fdr_cut]))
+
+outie_m3%>%
+   filter(geneset %in% allsigs) ->
+outie
+
+
+## set all non-significant genesets PValues to 1
+outie$log10_Pval_rtss[outie$FDR_rtss >= fdr_cut] <- 0
+outie$log10_Pval_comp[outie$FDR_comp >= fdr_cut] <- 0
+
+outie %>%
+  dplyr::arrange(annotation, log10_Pval_rtss, log10_Pval_comp) %>%
+  dplyr::select(c(geneset, annotation, 
+                  log10_Pval_rtss, 
+                  log10_Pval_comp)) %>%
+  column_to_rownames("geneset") %>%
+  dplyr::rename(rtss=log10_Pval_rtss) %>%
+  dplyr::rename(comp=log10_Pval_comp) %>%
+  as.data.frame() ->
+  heat_mat
+
+## colors for annotation
+annos <- unique(heat_mat$annotation)
+anno_col <- rainbow(length(annos))
+anno_cols <- anno_col[as.factor(heat_mat$annotation)]
+heat_mat$annotation <- NULL
+
+if(DO_PDF) {pdf(file=here("output/figures/manuscript/heat_disease_dmso_M3.pdf"))}
+
+heatmap3(heat_mat, Rowv=NA, Colv=NA, scale="none", balanceColor=TRUE, 
+         cexRow=0.50, cexCol=1.25, showRowDendro=FALSE, margins=c(3,15),
+         col=colorRampPalette(c("navy", "white", "firebrick3"))(1024),
+         RowSideColors=anno_cols, RowSideLabs="")
+ legend(x="bottomleft", inset=-0.11, legend=annos, fill=anno_col, bty="n", cex=0.7)
+ 
+if(DO_PDF) {dev.off()}
+
+```
+
+
+
+##disease M3-MO  {.tabset .tabset-fade .tabset-pills}
+  
+Only Bagamoya samples with the dmso stimulation are used. A consequence of this is that only subjects from the old age group are included.  Additionally only paired samples by subject are included.
+  
+```{r m3-m0}
+
+form_visit_main <- "~plate + total_reads + pid + visit"
+coeff <- "visitM3"
+
+mal067_voom$targets %>%
+  filter(site=="BAGAMOYO") %>%
+  filter(stimulation=="dmso") %>%
+  filter(case == "case" | case == "control") %$%
+  col_id ->
+  bag_ind
+
+v_bag <- mal067_voom[,bag_ind]
+v_bag$targets$stimulation <- fct_drop(v_bag$targets$stimulation)
+v_bag$targets$case <- fct_drop(v_bag$targets$case)
+v_bag$targets$visit <- fct_relevel(v_bag$targets$visit, "M0")
+
+
+## get paired intersection between time points
+pids <- intersect(v_bag$targets$pid[v_bag$targets$visit=="M0"],
+                  v_bag$targets$pid[v_bag$targets$visit=="M3"])
+v_bag$targets %>%
+  filter(pid %in% pids) %$%
+  col_id ->
+  pid_ids
+  
+v_bag <- v_bag[,pid_ids]
+
+v_bag$targets %>%
+  countSampleSizes("stimulation", c("vaccine", "malaria_status",  "age", "visit", "case")) %>%
+  headerKable(labels=c("vaccine", "disease", "age", "visit", "case"),
+              levels=c(2,2,2,2,2))
+```
+
+formula: `r form_visit_main`  
+coefficient: `r coeff`  
+  
+###malaria and rtss
+  
+```{r visit_ma1l}
+
+## select only rts,s subjects
+indy <- v_bag$targets$malaria_status == 1 & v_bag$targets$vaccine=="rtss"
+
+## interaction
+des <- model.matrix(formula(form_visit_main), v_bag$targets[indy,])
+
+## run camera
+cam_visit_mal_rtss <- as_tibble(camera(v_bag$E[,indy], btm_ind, design=des,
+                              contrast=coeff),
+                       rownames="geneset")
+v_mal_sigs <- sum(cam_visit_mal_rtss$FDR <= fdr_cut)
+
+cam_visit_mal_rtss %>%
+  filter(FDR <= fdr_cut) %>%
+  datatable()
+
+write_csv(cam_visit_mal_rtss, paste0(here("output/"),
+                                 "M3-M0_disease_mal_rtss.csv"))
+
+```
+
+###malaria and comparator
+  
+```{r visit_comp}
+
+## select only rts,s subjects
+indy <- v_bag$targets$malaria_status == 1 & v_bag$targets$vaccine=="comparator"
+
+## interaction
+des <- model.matrix(formula(form_visit_main), v_bag$targets[indy,])
+
+## run camera
+cam_visit_mal_comp <- as_tibble(camera(v_bag$E[,indy], btm_ind, design=des,
+                              contrast=coeff),
+                       rownames="geneset")
+v_mal_sigs <- sum(cam_visit_mal_comp$FDR <= fdr_cut)
+
+cam_visit_mal_comp %>%
+  filter(FDR <= fdr_cut) %>%
+  datatable()
+
+write_csv(cam_visit_mal_comp, paste0(here("output/"),
+                                 "M3-M0_disease_mal_comp.csv"))
+
+```
+
+
+
+###no malaria and rtss
+  
+```{r visit_nomal}
+
+## select only rts,s subjects
+indy <- v_bag$targets$malaria_status == 0 & v_bag$targets$vaccine=="rtss"
+
+## interaction
+des <- model.matrix(formula(form_visit_main), v_bag$targets[indy,])
+
+## run camera
+cam_visit_nomal_rtss <- as_tibble(camera(v_bag$E[,indy], btm_ind, design=des,
+                              contrast=coeff),
+                       rownames="geneset")
+v_mal_sigs <- sum(cam_visit_nomal_rtss$FDR <= fdr_cut)
+
+cam_visit_nomal_rtss %>%
+  filter(FDR <= fdr_cut) %>%
+  datatable()
+
+write_csv(cam_visit_nomal_rtss, paste0(here("output/"),
+                                 "M3-M0_disease_nomal_rtss.csv"))
+
+```
+
+###no malaria and comparator
+  
+```{r visit_both}
+
+## select only rts,s subjects
+indy <- v_bag$targets$malaria_status == 0 & v_bag$targets$vaccine=="comparator"
+
+## interaction
+des <- model.matrix(formula(form_visit_main), v_bag$targets[indy,])
+
+## run camera
+cam_visit_nomal_comp <- as_tibble(camera(v_bag$E[,indy], btm_ind, design=des,
+                              contrast=coeff),
+                       rownames="geneset")
+v_mal_sigs <- sum(cam_visit_nomal_comp$FDR <= fdr_cut)
+
+cam_visit_nomal_comp %>%
+  filter(FDR <= fdr_cut) %>%
+  datatable()
+
+write_csv(cam_visit_nomal_comp, paste0(here("output/"),
+                                 "M3-M0_disease_nomal_comp.csv"))
+
+```
+
+
+
+#Plots: M3-M0    
+  
+```{r heatme_dis}
+
+## filter and process malaria subjects
+cam_visit_mal_rtss %>%
+  dplyr::select(-c(NGenes)) %>%
+  dplyr::left_join(cam_visit_mal_comp, by="geneset") %>%
+  dplyr::select(-c(NGenes)) %>%
+  dplyr::left_join(btm_anno, by=c("geneset"="full_title")) %>%
+  dplyr::select(-c(ID, 'Module title')) %>%
+  dplyr::rename(PValue_mal_r=PValue.x, 
+                Direction_mal_r=Direction.x, 
+                FDR_mal_r=FDR.x, 
+                PValue_mal_c=PValue.y, 
+                Direction_mal_c=Direction.y, 
+                FDR_mal_c=FDR.y) %>% 
+  mutate(Direction_mal_r=as.numeric(plyr::mapvalues(Direction_mal_r, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(Direction_mal_c=as.numeric(plyr::mapvalues(Direction_mal_c, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(log10_Pval_mal_r=Direction_mal_r*-log10(PValue_mal_r)) %>%
+  mutate(log10_Pval_mal_c=Direction_mal_c*-log10(PValue_mal_c)) ->
+  outie_m3_m0_mal
+
+## filter and process no malaria subjects
+cam_visit_nomal_rtss %>%
+  dplyr::select(-c(NGenes)) %>%
+  dplyr::left_join(cam_visit_nomal_comp, by="geneset") %>%
+  dplyr::select(-c(NGenes)) %>%
+  dplyr::rename(PValue_nomal_r=PValue.x, 
+                Direction_nomal_r=Direction.x, 
+                FDR_nomal_r=FDR.x, 
+                PValue_nomal_c=PValue.y, 
+                Direction_nomal_c=Direction.y, 
+                FDR_nomal_c=FDR.y) %>% 
+  mutate(Direction_nomal_r=as.numeric(plyr::mapvalues(Direction_nomal_r, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(Direction_nomal_c=as.numeric(plyr::mapvalues(Direction_nomal_c, 
+                                             from=c("Up", "Down"), 
+                                              to=c(1,-1)))) %>%
+  mutate(log10_Pval_nomal_r=Direction_nomal_r*-log10(PValue_nomal_r)) %>%
+  mutate(log10_Pval_nomal_c=Direction_nomal_c*-log10(PValue_nomal_c)) ->
+  outie_m3_m0_nomal
+
+outie_m3_m0_mal %>%
+  dplyr::left_join(outie_m3_m0_nomal, by="geneset") %>%
+  filter(!is.na(annotation) & !str_detect(annotation,"TBA")) ->
+  outie_m3_m0
+
+
+## select only significant genesets
+allsigs <- unique(c(outie_m3_m0$geneset[outie_m3_m0$FDR_mal_r <= fdr_cut],
+                    outie_m3_m0$geneset[outie_m3_m0$FDR_mal_c <= fdr_cut],
+                    outie_m3_m0$geneset[outie_m3_m0$FDR_nomal_r <= fdr_cut],
+                    outie_m3_m0$geneset[outie_m3_m0$FDR_nomal_c <= fdr_cut]))
+
+outie_m3_m0%>%
+   filter(geneset %in% allsigs) ->
+outie
+
+
+
+## set all non-significant genesets PValues to 1
+outie$log10_Pval_mal_r[outie$FDR_mal_r >= fdr_cut] <- 0
+outie$log10_Pval_nomal_r[outie$FDR_nomal_r >= fdr_cut] <- 0
+outie$log10_Pval_mal_c[outie$FDR_mal_c >= fdr_cut] <- 0
+outie$log10_Pval_nomal_c[outie$FDR_nomal_c >= fdr_cut] <- 0
+
+outie %>%
+  dplyr::arrange(annotation, log10_Pval_mal_r) %>%
+  dplyr::select(c(geneset, annotation, 
+                  log10_Pval_mal_r, 
+                  log10_Pval_nomal_r,
+                  log10_Pval_mal_c, 
+                  log10_Pval_nomal_c)) %>%
+  column_to_rownames("geneset") %>%
+  dplyr::rename(mal_rtss=log10_Pval_mal_r) %>%
+  dplyr::rename(mal_comp=log10_Pval_mal_c) %>%
+  dplyr::rename(nomal_rtss=log10_Pval_nomal_r) %>%
+  dplyr::rename(nomal_comp=log10_Pval_nomal_c) %>%
+  as.data.frame() ->
+  heat_mat
+
+## colors for annotation
+annos <- unique(heat_mat$annotation)
+anno_col <- rainbow(length(annos))
+anno_cols <- anno_col[as.factor(heat_mat$annotation)]
+##heat_mat$annotation <- NULL
+
+
+if(FALSE) {
+if(DO_PDF) {pdf(file=here("output/figures/manuscript/heat_disease_M3-M0.pdf"))}
+
+heatmap3(heat_mat, Rowv=NA, Colv=NA, scale="none", balanceColor=TRUE, 
+         cexRow=0.50, cexCol=1.25, showRowDendro=FALSE, margins=c(7,15),
+         col=colorRampPalette(c("navy", "white", "firebrick3"))(1024),
+         RowSideColors=anno_cols, RowSideLabs="")
+ legend(x="bottomleft", inset=-0.11, legend=annos, fill=anno_col, bty="n", cex=0.7)
+ 
+if(DO_PDF) {dev.off()}
+}
+```
+  
+#Down-selected disease analysis
+
+```{r down_load}
+
+## read in vaccine comparison results
+m3_vac <- read_csv(paste0(here("output/"), "vaccine_both_dmso_M3.csv"))
+m3_m0_vac <- read_csv(paste0(here("output/"), "M3-M0_both.csv"))
+
+```
+  
+   
+##M3 DMSO disease comparison on down-selected vaccine gene-sets  
+  
+```{r}
+
+## get disease comparison genesets based on same vaccine comparison
+m3_vac %>%
+  filter(FDR <= fdr_cut) %$%
+  geneset ->
+all_sigs_ds_m3
+
+outie_m3 %>%
+  filter(geneset %in% all_sigs_ds_m3) %>%
+  mutate(FDR_rtss = p.adjust(PValue_rtss, method="BH")) %>%
+  mutate(FDR_comp = p.adjust(PValue_comp, method="BH")) %>%
+   filter(!is.na(annotation) & !str_detect(annotation,"TBA")) %>%
+  filter(FDR_rtss <= fdr_cut | FDR_comp <= fdr_cut) ->
+  outie_m3_ds
+
+write_csv(outie_m3_ds, paste0(here("output/"), "Fig3A_M3_case_control.csv"))
+  
+## set all non-significant genesets PValues to 1
+outie_m3_ds$log10_Pval_rtss[outie_m3_ds$FDR_rtss >= fdr_cut] <- 0
+outie_m3_ds$log10_Pval_comp[outie_m3_ds$FDR_comp >= fdr_cut] <- 0
+
+outie_m3_ds %>%
+  dplyr::arrange(annotation, log10_Pval_rtss, log10_Pval_comp) %>%
+  dplyr::select(c(geneset, annotation, 
+                  log10_Pval_rtss, 
+                  log10_Pval_comp)) %>%
+  column_to_rownames("geneset") %>%
+  dplyr::rename(rtss=log10_Pval_rtss) %>%
+  dplyr::rename(comp=log10_Pval_comp) %>%
+  as.data.frame() ->
+  heat_mat
+
+## colors for annotation
+annos <- unique(heat_mat$annotation)
+anno_col <- rainbow(length(annos))
+anno_cols <- anno_col[as.factor(heat_mat$annotation)]
+heat_mat$annotation <- NULL
+
+## only 1 significant gene-set so no heat map
+if(FALSE) {
+if(DO_PDF) {pdf(file=here("output/figures/manuscript/heat_disease_downselect_dmso_M3.pdf"))}
+
+heatmap3(heat_mat, Rowv=NA, Colv=NA, scale="none", balanceColor=TRUE, 
+         cexRow=1, cexCol=1.25, showRowDendro=FALSE, margins=c(3,25),
+         col=colorRampPalette(c("navy", "white", "firebrick3"))(1024),
+         RowSideColors=anno_cols, RowSideLabs="")
+ legend(x="bottomleft", inset=-0.11, legend=annos, fill=anno_col, bty="n", cex=0.7)
+ 
+if(DO_PDF) {dev.off()}
+}
+```
+
+
+###Driver genes from M3 disease comparison significant gene-sets (Section2)  
+  
+Extract driver genes from down-selected monocyte related significant gene-sets. 
+ 
+```{r read_child}
+## read in child file for rendering
+child1 <- here::here("analysis/children", "gsea_plot_genes.Rmd")
+childy <- read_file(child1)
+```
+
+  
+```{r driver}
+ds_mono_sigs <- grep("monocyte", rownames(heat_mat), value=TRUE)
+p_cut <- 0.1
+all_sig_genes <- NULL
+```
+
+
+```{r M11}
+set <- ds_mono_sigs[[1]]
+
+```
+  
+`r paste(knit_child(text = childy), collapse = '\n')`
+</br>
+   
+  
+
+```{r M81}
+set <- ds_mono_sigs[[2]]
+
+```
+  
+`r paste(knit_child(text = childy), collapse = '\n')`
+</br>
+     
+
+##M3-M0 DMSO disease comparison on down-selected vaccine gene-sets  
+  
+```{r}
+
+## get disease comparison genesets based on same vaccine comparison
+m3_m0_vac %>%
+  filter(FDR <= fdr_cut) %$%
+  geneset ->
+all_sigs_ds_m3_m0
+
+outie_m3_m0 %>%
+  filter(geneset %in% all_sigs_ds_m3) %>%
+  mutate(FDR_mal_r = p.adjust(PValue_mal_r, method="BH")) %>%
+  mutate(FDR_nomal_r = p.adjust(PValue_nomal_r, method="BH")) %>%
+  mutate(FDR_mal_c = p.adjust(PValue_mal_c, method="BH")) %>%
+  mutate(FDR_nomal_c = p.adjust(PValue_nomal_c, method="BH")) %>%
+   filter(!is.na(annotation) & !str_detect(annotation,"TBA")) %>%
+  filter(FDR_mal_r <= fdr_cut | FDR_nomal_r <= fdr_cut |
+         FDR_mal_c <= fdr_cut | FDR_nomal_c <= fdr_cut ) ->
+  outie_m3_m0_ds
+
+write_csv(outie_m3_m0_ds, paste0(here("output/"), "Fig3B_M3-M0_rtss.csv"))
+  
+## set all non-significant genesets PValues to 1
+outie_m3_m0_ds$log10_Pval_mal_r[outie_m3_m0_ds$FDR_mal_r >= fdr_cut] <- 0
+outie_m3_m0_ds$log10_Pval_nomal_r[outie_m3_m0_ds$FDR_nomal_r >= fdr_cut] <- 0
+outie_m3_m0_ds$log10_Pval_mal_c[outie_m3_m0_ds$FDR_mal_c >= fdr_cut] <- 0
+outie_m3_m0_ds$log10_Pval_nomal_c[outie_m3_m0_ds$FDR_nomal_c >= fdr_cut] <- 0
+
+outie_m3_m0_ds %>%
+  dplyr::arrange(annotation, log10_Pval_mal_r, log10_Pval_nomal_r, 
+                  log10_Pval_mal_c, log10_Pval_nomal_c) %>%
+  dplyr::select(c(geneset, annotation, 
+                  log10_Pval_mal_r, 
+                  log10_Pval_nomal_r,
+                  log10_Pval_mal_c, 
+                  log10_Pval_nomal_c)) %>%
+  column_to_rownames("geneset") %>%
+  dplyr::rename(mal_rtss=log10_Pval_mal_r) %>%
+  dplyr::rename(no_mal_rtss=log10_Pval_nomal_r) %>%
+  dplyr::rename(mal_comp=log10_Pval_mal_c) %>%
+  dplyr::rename(no_mal_comp=log10_Pval_nomal_c) %>%
+  as.data.frame() ->
+  heat_mat
+
+## colors for annotation
+annos <- unique(heat_mat$annotation)
+anno_col <- rainbow(length(annos))
+anno_cols <- anno_col[as.factor(heat_mat$annotation)]
+heat_mat$annotation <- NULL
+
+## only 1 significant gene-set so no heat map
+if(FALSE) {
+if(DO_PDF) {pdf(file=here("output/figures/manuscript/heat_disease_downselect_M3-M0.pdf"))}
+
+heatmap3(heat_mat, Rowv=NA, Colv=NA, scale="none", balanceColor=TRUE, 
+         cexRow=1, cexCol=1.25, showRowDendro=FALSE, margins=c(1,25),
+         col=colorRampPalette(c("navy", "white", "firebrick3"))(1024),
+         RowSideColors=anno_cols, RowSideLabs="")
+ legend(x="bottomleft", inset=-0.11, legend=annos, fill=anno_col, bty="n", cex=0.7)
+ 
+if(DO_PDF) {dev.off()}
+}
+```
+
+##All significant genes  
+  
+```{r}
+
+##Bubble map  
+  
+```{r bubble, eval=FALSE}
+
+## remove TBAs
+ cam_visit_all %>%
+   filter(!str_detect(annotation, "TBA")) ->
+   cam_M
+
+ ## reformat for bubble graph
+ as.data.frame(unlist(t(table(cam_M[cam_M$FDR_both <= fdr_cut,
+                                    c("Direction_both", 
+                                      "annotation")])))) %>%
+   dplyr::rename(Direction=Direction_both) %>%
+   mutate(Dir_name=paste("both", Direction)) ->
+   bub_both
+   
+ as.data.frame(unlist(t(table(cam_M[cam_M$FDR_rtss <= fdr_cut,
+                                    c("Direction_rtss",
+                                      "annotation")])))) %>%
+   dplyr::rename(Direction=Direction_rtss) %>%
+   mutate(Dir_name=paste("rtss", Direction)) ->
+   bub_rtss
+ 
+ as.data.frame(unlist(t(table(cam_M[cam_M$FDR_comp <= fdr_cut,
+                                    c("Direction_comp",
+                                      "annotation")])))) %>%
+   dplyr::rename(Direction=Direction_comp) %>%
+   mutate(Dir_name=paste("comp", Direction)) ->
+   bub_comp
+ 
+ as.data.frame(unlist(t(table(outie_vac[,c("Direction", "annotation")])))) %>%
+   mutate(Dir_name=paste("M3", Direction)) ->
+   bub_vac
+ 
+ bub_all <- rbind(bub_vac, bub_both, bub_rtss, bub_comp)
+ bub_all$Freq[bub_all$Freq == 0] <- NA
+ bub_all$annotation <- factor(bub_all$annotation, levels=sort(unique(bub_all$annotation)))
+ 
+ bub_all$Dir_name <- factor(bub_all$Dir_name, levels=c("M3 Up", "M3 Down", "both Up", "both Down", "rtss Up", "rtss Down", "comp Up", "comp Down"))
+ bub_all$Direction <- relevel(bub_all$Direction, "Up")
+ 
+ ## remove comp columns
+ bub_all %>%
+   filter(Dir_name == "rtss Up" | Dir_name == "rtss Down" |
+           Dir_name == "M3 Up" | Dir_name == "M3 Down") ->
+   bub1
+ 
+ if(DO_PDF) {pdf(file=here("output/figures/manuscript/Fig2_bubble.pdf"))}
+ ggplot(bub1, aes(x=Dir_name, y=factor(annotation, levels=rev(sort(unique(annotation)))), size=Freq,
+                     color=Direction)) +
+   geom_point() + xlab("") + ylab("annotation") +
+   ggtitle("vaccine effect") +
+   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+   scale_color_manual(values=c("firebrick3", "navy")) 
+
+ if(DO_PDF) {dev.off()}
+ 
+```
+
+
+
+

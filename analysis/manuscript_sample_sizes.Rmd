@@ -1,0 +1,184 @@
+---
+title: "Sample sizes"
+author: "Carl Murie"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: html_document
+---
+
+
+```{r overall-knitr-options, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(cache=FALSE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='asis')
+```
+
+```{r packages}
+library(Biobase)
+library(readr)
+library(RNASeqUtilities)
+library(forcats)
+library(tidyverse)
+```
+
+
+```{r load}
+## load mal067 data
+library(mal067data)
+meta_dt <- as_tibble(pData(mal067_eset))
+```
+
+#Sample sizes  
+  
+##M0  
+
+###Bagamoyo  
+  
+```{r}
+################## M0 ############################
+
+## BAGAMOYO
+
+## M0 comparator by age 
+meta_dt %>%
+  filter(visit=="M0") %>%
+  filter(site=="BAGAMOYO") %>%
+  filter(stimulation=="dmso") %>%
+  filter(vaccine=="comparator") %>%
+  countSampleSizes("case", c("age")) %>%
+  headerKable(title="comparator")
+
+## M0 rtss by age
+meta_dt %>%
+  filter(visit=="M0") %>%
+  filter(site=="BAGAMOYO") %>%
+  filter(stimulation=="dmso") %>%
+  filter(vaccine=="rtss") %>%
+  countSampleSizes("case", c("age")) %>%
+  headerKable(title="rts,s")
+```
+  
+###MANHICA
+  
+```{r}
+## M0 comparator by age 
+meta_dt %>%
+  filter(visit=="M0") %>%
+  filter(site=="MANHICA") %>%
+  filter(stimulation=="dmso") %>%
+  filter(vaccine=="comparator") %>%
+  countSampleSizes("case", c("age")) %>%
+  headerKable(title="comparator")
+
+## M0 rtss by age
+meta_dt %>%
+  filter(visit=="M0") %>%
+  filter(site=="MANHICA") %>%
+  filter(stimulation=="dmso") %>%
+  filter(vaccine=="rtss") %>%
+  countSampleSizes("case", c("age")) %>%
+  headerKable(title="rts,s")
+```
+  
+###Both sites  
+  
+```{r}
+## Both sites
+
+## M0 comparator by age 
+meta_dt %>%
+  filter(visit=="M0") %>%
+  ##filter(site=="MANHICA") %>%
+  filter(stimulation=="dmso") %>%
+  filter(vaccine=="comparator") %>%
+  countSampleSizes("case", c("age")) %>%
+  headerKable(title="comparator")
+
+## M0 rtss by age
+meta_dt %>%
+  filter(visit=="M0") %>%
+  ##filter(site=="MANHICA") %>%
+  filter(stimulation=="dmso") %>%
+  filter(vaccine=="rtss") %>%
+  countSampleSizes("case", c("age")) %>%
+  headerKable(title="rts,s")
+
+```
+
+##M3  
+  
+###Bagamoyo
+  
+```{r}
+################## M0 ############################
+
+## BAGAMOYO
+
+## M0 comparator by age 
+meta_dt %>%
+  filter(visit=="M3") %>%
+  filter(site=="BAGAMOYO") %>%
+  filter(stimulation=="dmso") %>%
+  filter(vaccine=="comparator") %>%
+  countSampleSizes("case", c("age")) %>%
+  headerKable(title="comparator")
+
+## M0 rtss by age
+meta_dt %>%
+  filter(visit=="M3") %>%
+  filter(site=="BAGAMOYO") %>%
+  filter(stimulation=="dmso") %>%
+  filter(vaccine=="rtss") %>%
+  countSampleSizes("case", c("age")) %>%
+  headerKable(title="rts,s")
+```
+  
+###Manhica  
+  
+```{r}
+## MANHICA
+
+## M0 comparator by age 
+meta_dt %>%
+  filter(visit=="M3") %>%
+  filter(site=="MANHICA") %>%
+  filter(stimulation=="dmso") %>%
+  filter(vaccine=="comparator") %>%
+  countSampleSizes("case", c("age")) %>%
+  headerKable(title="comparator")
+
+## M0 rtss by age
+meta_dt %>%
+  filter(visit=="M3") %>%
+  filter(site=="MANHICA") %>%
+  filter(stimulation=="dmso") %>%
+  filter(vaccine=="rtss") %>%
+  countSampleSizes("case", c("age")) %>%
+  headerKable(title="rts,s")
+```
+  
+###Both sites  
+  
+```{r}
+## Both sites
+
+## M0 comparator by age 
+meta_dt %>%
+  filter(visit=="M3") %>%
+  ##filter(site=="MANHICA") %>%
+  filter(stimulation=="dmso") %>%
+  filter(vaccine=="comparator") %>%
+  countSampleSizes("case", c("age")) %>%
+  headerKable(title="comparator")
+
+## M0 rtss by age
+meta_dt %>%
+  filter(visit=="M3") %>%
+  ##filter(site=="MANHICA") %>%
+  filter(stimulation=="dmso") %>%
+  filter(vaccine=="rtss") %>%
+  countSampleSizes("case", c("age")) %>%
+  headerKable(title="rts,s")
+
+```
+
+
+
