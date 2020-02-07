@@ -1,22 +1,22 @@
-name: "mal067project"
-output_dir: "../docs"
+name: mal067project
+output_dir: ../docs
 navbar:
-  title: "mal067project"
+  title: mal067project
   left:
-    - text: "Home"
-      href: index.html
-    - text: "About"
-      href: about.html
-    - text: "License"
-      href: license.html
+  - text: Home
+    href: index.html
+  - text: About
+    href: about.html
+  - text: License
+    href: license.html
   right:
-    - icon: fa-github
-      href: https://github.com/jdblischak/workflowr
+  - icon: fa-github
+    text: Source code
+    href: https://github.com/carlmurie/mal067project
 output:
   workflowr::wflow_html:
-    toc: true
-    toc_float: true
-    number_sections: true
+    toc: yes
+    toc_float: yes
+    number_sections: yes
     theme: lumen
     highlight: textmate
-
